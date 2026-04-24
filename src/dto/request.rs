@@ -11,11 +11,14 @@ pub fn payload_to_request(
     payload: &Value,
 ) -> Result<CompileRequest, StockTrekCompileAlgorithmError> {
     info!("parse request");
-    let payload_str = payload.to_string();
-    info!("payload {}", payload_str);
-    let deserializer = &mut serde_json::Deserializer::from_str(&payload_str);
+    let body = payload
+        .get("body")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| invalid_request(&["Missing path 'body'"]))?;
+    info!("body {}", body);
+    let deserializer = &mut serde_json::Deserializer::from_str(&body);
     let http_request: HttpRequest = serde_path_to_error::deserialize(deserializer)
-        .map_err(|e| invalid_request(&[e.path().to_string().as_str()]))?;
+        .map_err(|e| invalid_request(&[format!("Missing path '{}'", e.path()).as_str()]))?;
     let metadata = match http_request.body.metadata {
         None => None,
         Some(metadata) => Some(MetadataRequest {
