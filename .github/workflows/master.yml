@@ -19,6 +19,7 @@ jobs:
         with:
           repository: Stock-Trek/algorithm-runner
           path: algorithm-runner
+          token: ${{ secrets.CHECKOUT_REPOSITORY }}
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
