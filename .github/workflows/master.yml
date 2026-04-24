@@ -1,0 +1,47 @@
+name: Build master and update lambda
+
+on:
+  push:
+    branches: master
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.START_ACTION_DEPLOY }}
+
+      - name: Checkout algorithm-runner
+        uses: actions/checkout@v5
+        with:
+          repository: Stock-Trek/algorithm-runner
+          path: algorithm-runner
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install Cargo Lambda via pip
+        run: pip install cargo-lambda
+
+      - name: Build Lambda function
+        run: cargo lambda build --include algorithm-runner --release --output-format zip
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.AWS_ROLE_ECR }}"
+          role-session-name: "algorithm-runner-${{ github.run_id }}"
+          retry-max-attempts: 3
+          mask-aws-account-id: true
+
+      - name: Update lambda code
+        run: |
+          aws lambda update-function-code \
+            --function-name stock-trek-compile-rust \
+            --zip-file fileb://target/lambda/algorithm-compiler/bootstrap.zip
