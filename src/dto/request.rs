@@ -22,7 +22,7 @@ pub fn payload_to_request(
     match deserialized_result {
         Err(e) => {
             let path = e.path();
-            let message = format!("Deserializing error in path '{}'", path);
+            let message = format!("Deserializing error in path '{}', {}", path, e.inner());
             tracing::error!(message);
             Err(invalid_request(&[message.as_str()]))
         }
