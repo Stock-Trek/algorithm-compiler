@@ -28,7 +28,7 @@ pub fn payload_to_request(
         }
         Ok(http_request) => {
             info!("Successfully deserialized http request");
-            let metadata = match http_request.body.metadata {
+            let metadata = match http_request.metadata {
                 None => None,
                 Some(metadata) => Some(MetadataRequest {
                     generator_id: new_generator_id(),
@@ -36,8 +36,8 @@ pub fn payload_to_request(
                 }),
             };
             Ok(CompileRequest {
-                code: http_request.body.code,
-                user_id: http_request.body.user_id,
+                code: http_request.code,
+                user_id: http_request.user_id,
                 metadata,
             })
         }
@@ -50,11 +50,6 @@ fn new_generator_id() -> String {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HttpRequest {
-    pub body: HttpBody,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct HttpBody {
     // TODO use jwt
     pub user_id: String,
     pub code: String,
