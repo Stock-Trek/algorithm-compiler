@@ -7,14 +7,16 @@ use serde_json::Value;
 use tracing::info;
 use uuid::Uuid;
 
-pub fn body_to_request(body: &Value) -> Result<CompileRequest, StockTrekCompileAlgorithmError> {
+pub fn payload_to_request(
+    payload: &Value,
+) -> Result<CompileRequest, StockTrekCompileAlgorithmError> {
     info!("parse request");
-    let body_str = body.to_string();
-    info!("body {}", body_str);
-    let deserializer = &mut serde_json::Deserializer::from_str(&body_str);
+    let payload_str = payload.to_string();
+    info!("payload {}", payload_str);
+    let deserializer = &mut serde_json::Deserializer::from_str(&payload_str);
     let http_request: HttpRequest = serde_path_to_error::deserialize(deserializer)
         .map_err(|e| invalid_request(&[e.path().to_string().as_str()]))?;
-    let metadata = match http_request.metadata {
+    let metadata = match http_request.body.metadata {
         None => None,
         Some(metadata) => Some(MetadataRequest {
             generator_id: new_generator_id(),
@@ -22,8 +24,8 @@ pub fn body_to_request(body: &Value) -> Result<CompileRequest, StockTrekCompileA
         }),
     };
     Ok(CompileRequest {
-        code: http_request.code,
-        user_id: http_request.user_id,
+        code: http_request.body.code,
+        user_id: http_request.body.user_id,
         metadata,
     })
 }
@@ -34,6 +36,11 @@ fn new_generator_id() -> String {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HttpRequest {
+    pub body: HttpBody,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HttpBody {
     // TODO use jwt
     pub user_id: String,
     pub code: String,

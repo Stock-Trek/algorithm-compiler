@@ -2,7 +2,7 @@ use crate::{
     compile::compile,
     dto::{
         errors::StockTrekCompileAlgorithmError,
-        request::body_to_request,
+        request::payload_to_request,
         response::{HandlerResult, HttpResponse},
     },
     prepare_code::prepare_code,
@@ -15,7 +15,7 @@ pub async fn handle_event(
     event: LambdaEvent<Value>,
 ) -> Result<HttpResponse, StockTrekCompileAlgorithmError> {
     info!("handle event");
-    let request = body_to_request(&event.payload)?;
+    let request = payload_to_request(&event.payload)?;
     prepare_code(&request)?;
     let compile_result = compile()?;
     if let Some(m) = &request.metadata {
