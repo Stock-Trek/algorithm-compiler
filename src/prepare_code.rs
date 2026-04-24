@@ -8,7 +8,7 @@ use crate::{
 use std::{
     fs,
     path::Path,
-    process::Command,
+    process::{Command, Stdio},
     time::{SystemTime, UNIX_EPOCH},
 };
 use tracing::info;
@@ -34,14 +34,23 @@ fn copy_source_folder_to_tmp() -> Result<(), StockTrekCompileAlgorithmError> {
 
 fn copy_dir(src: &str, dst: &str) -> Result<(), StockTrekCompileAlgorithmError> {
     info!("Copy {} to {}", src, dst);
-    let _ = Command::new("ls")
-        .args(["-lA", src])
-        .output()
-        .map_err(|e| internal_server_e("Error when listing src dir {}", e))?;
+    list_dir(src)?;
     let _ = Command::new("cp")
         .args(["-r", src, dst])
         .output()
         .map_err(|e| internal_server_e("Error when copying dir {}", e))?;
+    list_dir(dst)?;
+    Ok(())
+}
+
+fn list_dir(dir: &str) -> Result<(), StockTrekCompileAlgorithmError> {
+    let output = Command::new("ls")
+        .args(["-lA", dir])
+        .stdout(Stdio::piped())
+        .output()
+        .map_err(|e| internal_server_e("Error when listing src dir {}", e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    info!("{}", stdout);
     Ok(())
 }
 
