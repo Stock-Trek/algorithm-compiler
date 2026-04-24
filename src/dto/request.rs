@@ -17,20 +17,31 @@ pub fn payload_to_request(
         .ok_or_else(|| invalid_request(&["Missing path 'body'"]))?;
     info!("body {}", body);
     let deserializer = &mut serde_json::Deserializer::from_str(&body);
-    let http_request: HttpRequest = serde_path_to_error::deserialize(deserializer)
-        .map_err(|e| invalid_request(&[format!("Missing path '{}'", e.path()).as_str()]))?;
-    let metadata = match http_request.body.metadata {
-        None => None,
-        Some(metadata) => Some(MetadataRequest {
-            generator_id: new_generator_id(),
-            metadata,
-        }),
-    };
-    Ok(CompileRequest {
-        code: http_request.body.code,
-        user_id: http_request.body.user_id,
-        metadata,
-    })
+    let deserialized_result: Result<HttpRequest, serde_path_to_error::Error<serde_json::Error>> =
+        serde_path_to_error::deserialize(deserializer);
+    match deserialized_result {
+        Err(e) => {
+            let path = e.path();
+            let message = format!("Deserializing error in path '{}'", path);
+            tracing::error!(message);
+            Err(invalid_request(&[message.as_str()]))
+        }
+        Ok(http_request) => {
+            info!("Successfully deserialized http request");
+            let metadata = match http_request.body.metadata {
+                None => None,
+                Some(metadata) => Some(MetadataRequest {
+                    generator_id: new_generator_id(),
+                    metadata,
+                }),
+            };
+            Ok(CompileRequest {
+                code: http_request.body.code,
+                user_id: http_request.body.user_id,
+                metadata,
+            })
+        }
+    }
 }
 
 fn new_generator_id() -> String {
