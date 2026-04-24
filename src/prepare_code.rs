@@ -37,7 +37,7 @@ fn copy_dir(src: &str, dst: &str) -> Result<(), StockTrekCompileAlgorithmError> 
     let _ = Command::new("cp")
         .args(["-r", src, dst])
         .output()
-        .map_err(|e| internal_server_e("Error when calling build process {}", e))?;
+        .map_err(|e| internal_server_e("Error when copying dir {}", e))?;
     Ok(())
 }
 
