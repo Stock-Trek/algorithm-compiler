@@ -19,6 +19,7 @@ jobs:
         with:
           repository: Stock-Trek/algorithm-runner
           path: algorithm-runner
+          token: ${{ env.GITHUB_TOKEN }}
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
