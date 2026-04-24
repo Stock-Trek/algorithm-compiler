@@ -8,6 +8,7 @@ use crate::{
 use std::{
     fs,
     path::Path,
+    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 use tracing::info;
@@ -26,45 +27,15 @@ fn copy_source_folder_to_tmp() -> Result<(), StockTrekCompileAlgorithmError> {
     if Path::new(TMP_BUILD_DIR).exists() {
         return Ok(());
     }
-    let parent = Path::new(TMP_BUILD_DIR)
-        .parent()
-        .ok_or_else(|| internal_server_e("Failed to get parent directory of {}", TMP_BUILD_DIR))?;
-    fs::create_dir_all(parent)
-        .map_err(|e| internal_server_e("Failed to create directory {}", e))?;
-    copy_dir_all(ALGORITHM_SOURCE_DIR, TMP_BUILD_DIR)
-        .map_err(|e| internal_server_e("Failed to copy directory {}", e))?;
+    copy_dir(ALGORITHM_SOURCE_DIR, TMP_BUILD_DIR)?;
     Ok(())
 }
 
-fn copy_dir_all(src: &str, dst: &str) -> Result<(), StockTrekCompileAlgorithmError> {
-    let src_path = Path::new(src);
-    let dst_path = Path::new(dst);
-    if src_path.is_file() {
-        fs::copy(src_path, dst_path).map_err(|e| internal_server_e("Failed to copy file {}", e))?;
-    } else {
-        if !dst_path.exists() {
-            fs::create_dir(dst_path)
-                .map_err(|e| internal_server_e("Failed to create directory {}", e))?;
-        }
-        let entries = fs::read_dir(src_path)
-            .map_err(|e| internal_server_e("Failed to read directory {}", e))?;
-        for entry in entries {
-            let entry = entry.map_err(|e| internal_server_e("Failed to read entry {}", e))?;
-            let file_type = entry
-                .file_type()
-                .map_err(|e| internal_server_e("Failed to get file type {}", e))?;
-            let file_name = entry.file_name();
-            let src_file = entry.path();
-            let dst_file = dst_path.join(file_name);
-            if file_type.is_file() {
-                fs::copy(&src_file, &dst_file)
-                    .map_err(|e| internal_server_e("Faild to copy file {}", e))?;
-            } else {
-                copy_dir_all(&src_file.to_string_lossy(), &dst_file.to_string_lossy())
-                    .map_err(|e| internal_server_e("Failed to copy directory {}", e))?;
-            }
-        }
-    }
+fn copy_dir(src: &str, dst: &str) -> Result<(), StockTrekCompileAlgorithmError> {
+    let _ = Command::new("cp")
+        .args(["-r", src, dst])
+        .output()
+        .map_err(|e| internal_server_e("Error when calling build process {}", e))?;
     Ok(())
 }
 
