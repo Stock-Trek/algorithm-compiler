@@ -17,7 +17,7 @@ pub fn body_to_request(body: &Value) -> Result<CompileRequest, StockTrekCompileA
     let metadata = match http_request.metadata {
         None => None,
         Some(metadata) => Some(MetadataRequest {
-            generator_id: Uuid::new_v4().to_string(),
+            generator_id: new_generator_id(),
             metadata,
         }),
     };
@@ -26,6 +26,10 @@ pub fn body_to_request(body: &Value) -> Result<CompileRequest, StockTrekCompileA
         user_id: http_request.user_id,
         metadata,
     })
+}
+
+fn new_generator_id() -> String {
+    format!("gen_{}", Uuid::new_v4())
 }
 
 #[derive(Debug, Serialize, Deserialize)]
