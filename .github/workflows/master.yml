@@ -13,8 +13,6 @@ jobs:
     steps:
       - name: Checkout source repo
         uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.START_ACTION_DEPLOY }}
 
       - name: Checkout algorithm-runner
         uses: actions/checkout@v5
