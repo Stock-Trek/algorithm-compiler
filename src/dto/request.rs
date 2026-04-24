@@ -4,10 +4,13 @@ use crate::dto::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tracing::info;
 use uuid::Uuid;
 
 pub fn body_to_request(body: &Value) -> Result<CompileRequest, StockTrekCompileAlgorithmError> {
+    info!("parse request");
     let body_str = body.to_string();
+    info!("body {}", body_str);
     let deserializer = &mut serde_json::Deserializer::from_str(&body_str);
     let http_request: HttpRequest = serde_path_to_error::deserialize(deserializer)
         .map_err(|e| invalid_request(&[e.path().to_string().as_str()]))?;

@@ -14,6 +14,7 @@ use std::{
 use tracing::info;
 
 pub fn prepare_code(request: &CompileRequest) -> Result<(), StockTrekCompileAlgorithmError> {
+    info!("Prepare code");
     copy_source_folder_to_tmp()?;
     write_code(&request.code)?;
     if let Some(metadata) = &request.metadata {
@@ -32,6 +33,7 @@ fn copy_source_folder_to_tmp() -> Result<(), StockTrekCompileAlgorithmError> {
 }
 
 fn copy_dir(src: &str, dst: &str) -> Result<(), StockTrekCompileAlgorithmError> {
+    info!("Copy {} to {}", src, dst);
     let _ = Command::new("cp")
         .args(["-r", src, dst])
         .output()

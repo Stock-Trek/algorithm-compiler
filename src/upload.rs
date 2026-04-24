@@ -3,11 +3,13 @@ use crate::{
     dto::errors::StockTrekCompileAlgorithmError,
     s3,
 };
+use tracing::info;
 
 pub async fn upload_to_s3(
     user_id: &str,
     generator_id: &str,
 ) -> Result<(), StockTrekCompileAlgorithmError> {
+    info!("Upload files to S3");
     let s3_key_raw_code = format!("{}/{}/algorithm.rs", user_id, generator_id);
     let s3_key_metadata = format!("{}/{}/metadata.rs", user_id, generator_id);
     let s3_key_cwasm = format!("{}/{}/binary.cwasm", user_id, generator_id);

@@ -21,10 +21,13 @@ use std::{
 pub fn compile() -> Result<CompileResult, StockTrekCompileAlgorithmError> {
     info!("compile");
     let build_result = build_wasm()?;
+    info!("Build result {:?}", build_result);
     if build_result.result == RESULT_FAILURE {
         return Ok(build_result);
     } else {
-        compile_cwasm()
+        let compile_result = compile_cwasm()?;
+        info!("Build result {:?}", compile_result);
+        return Ok(compile_result);
     }
 }
 
@@ -104,6 +107,7 @@ struct CompileOutput {
 }
 
 fn get_compile_output(stdout: String) -> Result<CompileOutput, StockTrekCompileAlgorithmError> {
+    info!("Get compile output from stdout");
     let mut success = false;
     let mut compile_messages = Vec::new();
     let lines = stdout.split('\n');
