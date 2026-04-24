@@ -34,6 +34,10 @@ fn copy_source_folder_to_tmp() -> Result<(), StockTrekCompileAlgorithmError> {
 
 fn copy_dir(src: &str, dst: &str) -> Result<(), StockTrekCompileAlgorithmError> {
     info!("Copy {} to {}", src, dst);
+    let _ = Command::new("ls")
+        .args(["-lA", src])
+        .output()
+        .map_err(|e| internal_server_e("Error when listing src dir {}", e))?;
     let _ = Command::new("cp")
         .args(["-r", src, dst])
         .output()

@@ -1,4 +1,4 @@
-pub const ALGORITHM_SOURCE_DIR: &str = "../algorithm-runner";
+pub const ALGORITHM_SOURCE_DIR: &str = "/var/task/algorithm-runner";
 pub const TMP_BUILD_DIR: &str = "/tmp/algorithm-runner";
 pub const TMP_ALGORITHM_RS: &str = "/tmp/algorithm-runner/src/algorithm/algorithm.rs";
 pub const TMP_METADATA_RS: &str = "/tmp/algorithm-runner/src/algorithm/metadata.rs";
