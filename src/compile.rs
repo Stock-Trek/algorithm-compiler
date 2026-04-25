@@ -45,13 +45,10 @@ fn build_wasm() -> Result<CompileResult, StockTrekCompileAlgorithmError> {
         ])
         .current_dir(TMP_BUILD_DIR)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::null())
         .output()
         .map_err(|e| internal_server_e("Error when calling build process {}", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    info!("stdout: {}", stdout);
-    info!("stderr: {}", stderr);
     let comple_output = get_compile_output(stdout.to_string())?;
     let compile_error_count = comple_output
         .compile_messages
