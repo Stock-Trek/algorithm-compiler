@@ -10,6 +10,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      IMAGE_PREFIX: "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/algorithm-compiler"
     steps:
       - name: Checkout source repo
         uses: actions/checkout@v5
@@ -24,23 +26,44 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - name: Install Cargo Lambda via pip
-        run: pip install cargo-lambda
-
-      - name: Build Lambda function
-        run: cargo lambda build --include algorithm-runner --release --output-format zip
+      - name: Get versions and create image-tag
+        id: image-tag
+        run: |
+          VERSION_AC=$(cargo pkgid | sed 's|.*#||; s|.*:||; s|^v||')
+          VERSION_AR=$(cargo pkgid --manifest-path algorith-runner/Cargo.toml | sed 's|.*#||; s|.*:||; s|^v||')
+          VERSIONED="compiler_${VERSION_AC}_runner_${VERSION_AR}"
+          echo "versioned=${VERSIONED}" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ secrets.AWS_REGION }}
           role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.AWS_ROLE_ECR }}"
-          role-session-name: "algorithm-runner-${{ github.run_id }}"
+          role-session-name: "algorithm-compiler-${{ github.run_id }}"
           retry-max-attempts: 3
           mask-aws-account-id: true
 
-      - name: Update lambda code
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx (required for caching)
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push with cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}:master
+            ${{ env.IMAGE_PREFIX }}:${{ steps.image-tag.outputs.versioned }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+      - name: Update lambdas to use latest image from master
         run: |
           aws lambda update-function-code \
             --function-name stock-trek-compile-rust \
-            --zip-file fileb://target/lambda/algorithm-compiler/bootstrap.zip
+            --image-uri "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/algorithm-compiler:master"
