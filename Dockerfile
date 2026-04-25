@@ -22,4 +22,9 @@ RUN curl -LO https://github.com/bytecodealliance/wasmtime/releases/download/v43.
 
 COPY ./ ./
 
+RUN cargo build --release --target x86_64-unknown-linux-gnu
+RUN mv target/x86_64-unknown-linux-gnu/release/algorithm-compiler ${LAMBDA_RUNTIME_DIR}/bootstrap
+
 ENV CARGO_INCREMENTAL="1"
+
+CMD ["bootstrap"]
