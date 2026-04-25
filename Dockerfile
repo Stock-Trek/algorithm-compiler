@@ -38,6 +38,6 @@ WORKDIR ${LAMBDA_RUNTIME_DIR}
 COPY --from=builder /app/bootstrap .
 COPY ./algorithm-runner ./algorithm-runner
 
-RUN cargo build --manifest-path ./algorithm-runner/Cargo.toml --frozen --target=wasm32-wasip1 --release
+RUN cargo build --manifest-path ./algorithm-runner/Cargo.toml --target=wasm32-wasip1 --release
 
 CMD ["bootstrap"]
