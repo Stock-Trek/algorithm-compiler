@@ -34,6 +34,7 @@ RUN curl -LO https://github.com/bytecodealliance/wasmtime/releases/download/v43.
  && mv wasmtime-v43.0.1-x86_64-linux/wasmtime /usr/local/bin/ \
  && rm -rf wasmtime-v43.0.1-x86_64-linux*
 
+WORKDIR ${LAMBDA_RUNTIME_DIR}
 COPY --from=builder /app/bootstrap .
 COPY ./algorithm-runner ./algorithm-runner
 
