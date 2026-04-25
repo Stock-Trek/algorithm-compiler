@@ -1,12 +1,12 @@
-FROM rust:latest AS builder
+FROM ghcr.io/cargo-lambda/cargo-lambda:latest AS builder
 
 WORKDIR /app
 COPY ./src ./src
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
 
-RUN cargo build --release --target x86_64-unknown-linux-gnu.2.34
-RUN cp target/x86_64-unknown-linux-gnu/release/algorithm-compiler bootstrap
+RUN cargo lambda build --release
+RUN cp target/lambda/algorithm-compiler/bootstrap .
 
 
 
