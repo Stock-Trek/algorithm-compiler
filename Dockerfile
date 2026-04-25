@@ -1,3 +1,17 @@
+FROM rust:latest AS builder
+
+WORKDIR /app
+COPY ./src ./src
+COPY ./Cargo.lock ./Cargo.lock
+COPY ./Cargo.toml ./Cargo.toml
+
+RUN cargo build --release --target x86_64-unknown-linux-gnu
+RUN cp target/x86_64-unknown-linux-gnu/release/algorithm-compiler bootstrap
+
+
+
+
+
 FROM public.ecr.aws/lambda/provided:al2023
 
 RUN dnf install -y \
@@ -20,11 +34,7 @@ RUN curl -LO https://github.com/bytecodealliance/wasmtime/releases/download/v43.
  && mv wasmtime-v43.0.1-x86_64-linux/wasmtime /usr/local/bin/ \
  && rm -rf wasmtime-v43.0.1-x86_64-linux*
 
-COPY ./ ./
-
-RUN cargo build --release --target x86_64-unknown-linux-gnu
-RUN mv target/x86_64-unknown-linux-gnu/release/algorithm-compiler ${LAMBDA_RUNTIME_DIR}/bootstrap
-
-ENV CARGO_INCREMENTAL="1"
+COPY --from=builder /app/bootstrap .
+COPY ./algorithm-runner ./algorithm-runner
 
 CMD ["bootstrap"]
