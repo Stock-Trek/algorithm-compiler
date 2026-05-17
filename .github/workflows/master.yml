@@ -36,6 +36,7 @@ jobs:
         with:
           client-id: ${{ env.GITHUB_APP_CREATE_TAGS_CLIENT_ID }}
           private-key: ${{ env.GITHUB_APP_CREATE_TAGS_PRIVATE_KEY }}
+          owner: Stock-Trek
 
       - name: Checkout
         uses: actions/checkout@v5
