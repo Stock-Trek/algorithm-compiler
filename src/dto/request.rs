@@ -16,7 +16,7 @@ pub fn payload_to_request(
         .and_then(|v| v.as_str())
         .ok_or_else(|| invalid_request(&["Missing path 'body'"]))?;
     info!("body {}", body);
-    let deserializer = &mut serde_json::Deserializer::from_str(&body);
+    let deserializer = &mut serde_json::Deserializer::from_str(body);
     let deserialized_result: Result<HttpRequest, serde_path_to_error::Error<serde_json::Error>> =
         serde_path_to_error::deserialize(deserializer);
     match deserialized_result {
@@ -28,13 +28,10 @@ pub fn payload_to_request(
         }
         Ok(http_request) => {
             info!("Successfully deserialized http request");
-            let metadata = match http_request.metadata {
-                None => None,
-                Some(metadata) => Some(MetadataRequest {
-                    generator_id: new_generator_id(),
-                    metadata,
-                }),
-            };
+            let metadata = http_request.metadata.map(|metadata| MetadataRequest {
+                generator_id: new_generator_id(),
+                metadata,
+            });
             Ok(CompileRequest {
                 code: http_request.code,
                 user_id: http_request.user_id,
