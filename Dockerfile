@@ -15,6 +15,7 @@ RUN cp target/lambda/algorithm-compiler/bootstrap .
 FROM public.ecr.aws/lambda/provided:al2023
 
 RUN dnf install -y \
+    clang \
     gcc \
     protobuf-compiler \
     tar \
