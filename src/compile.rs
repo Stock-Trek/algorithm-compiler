@@ -9,10 +9,10 @@ use crate::{
         response::CompileResult,
     },
 };
-use hashbrown::HashMap;
 use lambda_runtime::tracing::{info, warn};
 use serde_json::Value;
 use std::{
+    collections::HashMap,
     fs,
     path::Path,
     process::{Command, Stdio},
