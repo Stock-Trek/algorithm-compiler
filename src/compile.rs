@@ -23,11 +23,11 @@ pub fn compile() -> Result<CompileResult, StockTrekCompileAlgorithmError> {
     let build_result = build_wasm()?;
     info!("Build result {:?}", build_result);
     if build_result.result == RESULT_FAILURE {
-        return Ok(build_result);
+        Ok(build_result)
     } else {
         let compile_result = compile_cwasm()?;
         info!("Build result {:?}", compile_result);
-        return Ok(compile_result);
+        Ok(compile_result)
     }
 }
 
@@ -143,7 +143,7 @@ fn get_compile_output(stdout: String) -> Result<CompileOutput, StockTrekCompileA
 fn add_compiler_messages_from_values(
     compile_messages: &mut Vec<CompileMessage>,
     values: HashMap<String, Value>,
-) -> () {
+) {
     let Some(message_dict) = values.get("message").and_then(|v| v.as_object()) else {
         return;
     };
