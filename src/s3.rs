@@ -5,11 +5,7 @@ use crate::{
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::Client as S3Client;
 use aws_smithy_types::byte_stream::ByteStream;
-use std::{
-    fs,
-    path::Path,
-    process::Command,
-};
+use std::{fs, path::Path, process::Command};
 
 pub async fn s3_client() -> S3Client {
     let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
