@@ -47,7 +47,7 @@ fn build_wasm() -> Result<CompileResult, StockTrekCompileAlgorithmError> {
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .output()
-        .map_err(|e| internal_server_e("Error when calling build process {}", e))?;
+        .map_err(|e| internal_server_e("Error when calling build process", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let comple_output = get_compile_output(stdout.to_string())?;
     let compile_error_count = comple_output
@@ -89,7 +89,7 @@ fn compile_cwasm() -> Result<CompileResult, StockTrekCompileAlgorithmError> {
         .args(["compile", "-C", "cache=no", BUILT_WASM, "-o", BUILT_CWASM])
         .current_dir(TMP_BUILD_DIR)
         .output()
-        .map_err(|e| internal_server_e("Unknown compile error {}", e))?;
+        .map_err(|e| internal_server_e("Unknown compile error", e))?;
     if !output.status.success() {
         info!("{}", String::from_utf8_lossy(&output.stderr));
         return Err(internal_server("Failed to compile cwasm"));
@@ -117,7 +117,7 @@ fn get_compile_output(stdout: String) -> Result<CompileOutput, StockTrekCompileA
             continue;
         }
         let values = serde_json::from_str::<HashMap<String, Value>>(cleaned_line)
-            .map_err(|e| internal_server_e("Failed to parse values from json {}", e))?;
+            .map_err(|e| internal_server_e("Failed to parse values from json", e))?;
         let Some(reason) = values.get("reason").and_then(|v: &Value| v.as_str()) else {
             continue;
         };

@@ -30,7 +30,7 @@ fn request_from_repo(
     let dir = repo_dir(&message.repo);
     let code_path = dir.join("src/algorithm/algorithm.rs");
     let code = fs::read_to_string(&code_path)
-        .map_err(|e| internal_server_e("Failed to read algorithm source {}", e))?;
+        .map_err(|e| internal_server_e("Failed to read algorithm source", e))?;
     let metadata = read_metadata(&dir)?;
     Ok(CompileRequest {
         user_id: repo_owner(message),
@@ -48,10 +48,10 @@ fn read_metadata(dir: &Path) -> Result<Option<Metadata>, StockTrekCompileAlgorit
         warn!("No metadata.json found in repository");
         return Ok(None);
     }
-    let contents = fs::read_to_string(&path)
-        .map_err(|e| internal_server_e("Failed to read metadata {}", e))?;
+    let contents =
+        fs::read_to_string(&path).map_err(|e| internal_server_e("Failed to read metadata", e))?;
     let metadata = serde_json::from_str(&contents)
-        .map_err(|e| internal_server_e("Failed to parse metadata {}", e))?;
+        .map_err(|e| internal_server_e("Failed to parse metadata", e))?;
     Ok(Some(metadata))
 }
 

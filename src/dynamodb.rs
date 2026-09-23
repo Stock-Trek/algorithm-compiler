@@ -53,7 +53,7 @@ pub async fn acquire_lock(
                     warn!("Lock for {} is held, retrying", key_value);
                     tokio::time::sleep(Duration::from_millis(LOCK_RETRY_DELAY_MS)).await;
                 } else {
-                    return Err(internal_server_e("Failed to acquire lock {}", error));
+                    return Err(internal_server_e("Failed to acquire lock", error));
                 }
             }
         }
@@ -77,6 +77,6 @@ pub async fn release_lock(
         .expression_attribute_values(":lock_id", AttributeValue::S(lock.token.clone()))
         .send()
         .await
-        .map_err(|e| internal_server_e("Failed to release lock {}", e))?;
+        .map_err(|e| internal_server_e("Failed to release lock", e))?;
     Ok(())
 }

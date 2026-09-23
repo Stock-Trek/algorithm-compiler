@@ -5,7 +5,9 @@ use crate::{
         errors::{StockTrekCompileAlgorithmError, internal_server, internal_server_e},
         sqs::SqsMessage,
     },
-    dynamodb, s3,
+    dynamodb,
+    program::Program,
+    s3,
 };
 use aws_sdk_s3::Client as S3Client;
 use std::{
@@ -16,6 +18,7 @@ use std::{
 use tracing::info;
 
 const LOCK_KEY_ATTRIBUTE: &str = "repo";
+const GIT: &str = "git";
 
 pub async fn prepare_repo(message: &SqsMessage) -> Result<(), StockTrekCompileAlgorithmError> {
     info!("Preparing repo {}", message.repo);
@@ -47,7 +50,7 @@ async fn download_repo(
     dir: &Path,
 ) -> Result<bool, StockTrekCompileAlgorithmError> {
     fs::create_dir_all(REPO_ARCHIVE_DIR)
-        .map_err(|e| internal_server_e("Failed to create archive directory {}", e))?;
+        .map_err(|e| internal_server_e("Failed to create archive directory", e))?;
     let downloaded =
         s3::download_file(s3_client, S3_BUCKET_UPLOADS, &repo_key(repo), archive_path).await?;
     if !downloaded {
@@ -55,10 +58,9 @@ async fn download_repo(
     }
     if dir.exists() {
         fs::remove_dir_all(dir)
-            .map_err(|e| internal_server_e("Failed to clear repo directory {}", e))?;
+            .map_err(|e| internal_server_e("Failed to clear repo directory", e))?;
     }
-    fs::create_dir_all(dir)
-        .map_err(|e| internal_server_e("Failed to create repo directory {}", e))?;
+    fs::create_dir_all(dir).map_err(|e| internal_server_e("Failed to create repo directory", e))?;
     archive::extract_archive(archive_path, dir)?;
     Ok(true)
 }
@@ -76,24 +78,24 @@ async fn upload_repo(
 fn update_repo(message: &SqsMessage, dir: &Path) -> Result<(), StockTrekCompileAlgorithmError> {
     if !dir.join(".git").exists() {
         fs::create_dir_all(dir)
-            .map_err(|e| internal_server_e("Failed to create repo directory {}", e))?;
-        git(&["init"], dir)?;
+            .map_err(|e| internal_server_e("Failed to create repo directory", e))?;
+        Program::run(GIT, &["init"], dir)?;
     }
     let remote = remote_url(message)?;
     if has_remote(dir) {
-        git(&["remote", "set-url", "origin", &remote], dir)?;
+        Program::run(GIT, &["remote", "set-url", "origin", &remote], dir)?;
     } else {
-        git(&["remote", "add", "origin", &remote], dir)?;
+        Program::run(GIT, &["remote", "add", "origin", &remote], dir)?;
     }
-    git(&["fetch", "--prune", "--tags", "origin"], dir)?;
+    Program::run(GIT, &["fetch", "--prune", "--tags", "origin"], dir)?;
     Ok(())
 }
 
 fn add_ref(message: &SqsMessage, dir: &Path) -> Result<(), StockTrekCompileAlgorithmError> {
     let branch = branch_name(message);
     let ref_name = format!("refs/heads/{}", branch);
-    git(&["update-ref", &ref_name, &message.after], dir)?;
-    git(&["checkout", "-f", &branch], dir)?;
+    Program::run(GIT, &["update-ref", &ref_name, &message.after], dir)?;
+    Program::run(GIT, &["checkout", "-f", &branch], dir)?;
     Ok(())
 }
 
@@ -144,22 +146,6 @@ fn sanitize(value: &str) -> String {
             other => other,
         })
         .collect()
-}
-
-fn git(args: &[&str], dir: &Path) -> Result<(), StockTrekCompileAlgorithmError> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .map_err(|e| internal_server_e("Failed to run git {}", e))?;
-    if !output.status.success() {
-        return Err(internal_server(&format!(
-            "git {} failed: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&output.stderr)
-        )));
-    }
-    Ok(())
 }
 
 fn has_remote(dir: &Path) -> bool {

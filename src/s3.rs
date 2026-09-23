@@ -17,7 +17,7 @@ pub async fn upload_file(
 ) -> Result<(), StockTrekCompileAlgorithmError> {
     let byte_stream = ByteStream::from_path(file_path)
         .await
-        .map_err(|e| internal_server_e("Failed to read byte stream from file {}", e))?;
+        .map_err(|e| internal_server_e("Failed to read byte stream from file", e))?;
     s3_client
         .put_object()
         .bucket(bucket)
@@ -25,7 +25,7 @@ pub async fn upload_file(
         .body(byte_stream)
         .send()
         .await
-        .map_err(|e| internal_server_e("Failed to save file {}", e))?;
+        .map_err(|e| internal_server_e("Failed to save file", e))?;
     Ok(())
 }
 
@@ -42,11 +42,11 @@ pub async fn download_file(
                 .body
                 .collect()
                 .await
-                .map_err(|e| internal_server_e("Failed to read downloaded object {}", e))?
+                .map_err(|e| internal_server_e("Failed to read downloaded object", e))?
                 .into_bytes();
             tokio::fs::write(file_path, &bytes)
                 .await
-                .map_err(|e| internal_server_e("Failed to write downloaded object {}", e))?;
+                .map_err(|e| internal_server_e("Failed to write downloaded object", e))?;
             Ok(true)
         }
         Err(error) => {
@@ -57,7 +57,7 @@ pub async fn download_file(
             {
                 Ok(false)
             } else {
-                Err(internal_server_e("Failed to download object {}", error))
+                Err(internal_server_e("Failed to download object", error))
             }
         }
     }

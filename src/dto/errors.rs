@@ -14,7 +14,6 @@ pub fn internal_server_e<E: Into<Box<dyn std::error::Error>> + Debug>(
     message: &str,
     error: E,
 ) -> StockTrekCompileAlgorithmError {
-    let error_message = format!("{:?}", error);
-    let m = message.replace("{}", error_message.as_str());
-    StockTrekCompileAlgorithmError::InternalServer(m)
+    let error_message = format!("{} {:?}", message, error);
+    StockTrekCompileAlgorithmError::InternalServer(error_message)
 }

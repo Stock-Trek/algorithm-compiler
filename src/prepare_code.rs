@@ -37,15 +37,14 @@ fn copy_dir(src: &str, dst: &str) -> Result<(), StockTrekCompileAlgorithmError> 
     let _ = Command::new("cp")
         .args(["-r", src, dst])
         .output()
-        .map_err(|e| internal_server_e("Error when copying dir {}", e))?;
+        .map_err(|e| internal_server_e("Error when copying dir", e))?;
     Ok(())
 }
 
 fn write_code(code: &str) -> Result<(), StockTrekCompileAlgorithmError> {
     info!("Copying code");
     let _ = fs::remove_file(TMP_ALGORITHM_RS);
-    fs::write(TMP_ALGORITHM_RS, code)
-        .map_err(|e| internal_server_e("Failed to write code: {}", e))?;
+    fs::write(TMP_ALGORITHM_RS, code).map_err(|e| internal_server_e("Failed to write code", e))?;
     Ok(())
 }
 
@@ -57,7 +56,7 @@ fn write_metadata(request: &MetadataRequest) -> Result<(), StockTrekCompileAlgor
         .unwrap()
         .as_secs() as i64;
     let references_json = serde_json::to_string(&request.metadata.provenance.references)
-        .map_err(|e| internal_server_e("Failed to serialize references {}", e))?;
+        .map_err(|e| internal_server_e("Failed to serialize references", e))?;
     let metadata_lines = format!(
         r#"
 pub const GENERATOR_CREATOR: &str = "{}";
@@ -82,6 +81,6 @@ pub const PROVENANCE_REFERENCES: &[&str] = &{};
     info!("Copying metadata");
     info!("{}", metadata_lines);
     fs::write(TMP_METADATA_RS, metadata_lines)
-        .map_err(|e| internal_server_e("Failed to write metadata {}", e))?;
+        .map_err(|e| internal_server_e("Failed to write metadata", e))?;
     Ok(())
 }

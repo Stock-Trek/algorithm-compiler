@@ -12,6 +12,7 @@ mod dto;
 mod dynamodb;
 mod handle_event;
 mod prepare_code;
+mod program;
 mod repo;
 mod s3;
 mod upload;
