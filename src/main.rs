@@ -5,6 +5,7 @@ use crate::{
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
 use tracing_subscriber::{EnvFilter, fmt::Subscriber};
 
+mod archive;
 mod compile;
 mod constants;
 mod dto;

@@ -1,12 +1,13 @@
 use crate::{
+    archive,
     constants::*,
     dto::{
         errors::{StockTrekCompileAlgorithmError, internal_server, internal_server_e},
         sqs::SqsMessage,
     },
-    dynamodb::{acquire_lock, release_lock},
-    s3,
+    dynamodb, s3,
 };
+use aws_sdk_s3::Client as S3Client;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -14,11 +15,15 @@ use std::{
 };
 use tracing::info;
 
+const LOCK_KEY_ATTRIBUTE: &str = "repo";
+
 pub async fn prepare_repo(message: &SqsMessage) -> Result<(), StockTrekCompileAlgorithmError> {
     info!("Preparing repo {}", message.repo);
-    let lock = acquire_lock(&message.repo).await?;
+    let client = dynamodb::dynamodb_client().await;
+    let table = lock_table();
+    let lock = dynamodb::acquire_lock(&client, &table, LOCK_KEY_ATTRIBUTE, &message.repo).await?;
     let sync_result = sync_repo(message).await;
-    let release_result = release_lock(&lock).await;
+    let release_result = dynamodb::release_lock(&client, &table, &lock).await;
     sync_result?;
     release_result?;
     Ok(())
@@ -28,25 +33,44 @@ async fn sync_repo(message: &SqsMessage) -> Result<(), StockTrekCompileAlgorithm
     let dir = repo_dir(&message.repo);
     let archive = repo_archive_path(&message.repo);
     let client = s3::s3_client().await;
-    s3::download_repo(
-        &client,
-        S3_BUCKET_UPLOADS,
-        &repo_key(&message.repo),
-        &archive,
-        &dir,
-    )
-    .await?;
+    download_repo(&client, &message.repo, &archive, &dir).await?;
     update_repo(message, &dir)?;
     add_ref(message, &dir)?;
-    s3::upload_repo(
-        &client,
-        S3_BUCKET_UPLOADS,
-        &repo_key(&message.repo),
-        &dir,
-        &archive,
-    )
-    .await?;
+    upload_repo(&client, &message.repo, &dir, &archive).await?;
     Ok(())
+}
+
+async fn download_repo(
+    s3_client: &S3Client,
+    repo: &str,
+    archive_path: &Path,
+    dir: &Path,
+) -> Result<bool, StockTrekCompileAlgorithmError> {
+    fs::create_dir_all(REPO_ARCHIVE_DIR)
+        .map_err(|e| internal_server_e("Failed to create archive directory {}", e))?;
+    let downloaded =
+        s3::download_file(s3_client, S3_BUCKET_UPLOADS, &repo_key(repo), archive_path).await?;
+    if !downloaded {
+        return Ok(false);
+    }
+    if dir.exists() {
+        fs::remove_dir_all(dir)
+            .map_err(|e| internal_server_e("Failed to clear repo directory {}", e))?;
+    }
+    fs::create_dir_all(dir)
+        .map_err(|e| internal_server_e("Failed to create repo directory {}", e))?;
+    archive::extract_archive(archive_path, dir)?;
+    Ok(true)
+}
+
+async fn upload_repo(
+    s3_client: &S3Client,
+    repo: &str,
+    dir: &Path,
+    archive_path: &Path,
+) -> Result<(), StockTrekCompileAlgorithmError> {
+    archive::create_archive(dir, archive_path)?;
+    s3::upload_file(s3_client, S3_BUCKET_UPLOADS, &repo_key(repo), archive_path).await
 }
 
 fn update_repo(message: &SqsMessage, dir: &Path) -> Result<(), StockTrekCompileAlgorithmError> {
@@ -106,6 +130,10 @@ fn repo_key(repo: &str) -> String {
 
 fn repo_archive_path(repo: &str) -> PathBuf {
     Path::new(REPO_ARCHIVE_DIR).join(format!("{}.tar.gz", sanitize(repo)))
+}
+
+fn lock_table() -> String {
+    std::env::var("REPO_LOCK_TABLE").unwrap_or_else(|_| DYNAMOD_DB_LOCK_TABLE.to_string())
 }
 
 fn sanitize(value: &str) -> String {
