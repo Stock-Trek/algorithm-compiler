@@ -3,6 +3,7 @@ use crate::{
     dto::errors::StockTrekCompileAlgorithmError,
     s3,
 };
+use std::path::Path;
 use tracing::info;
 
 pub async fn upload_to_s3(
@@ -16,18 +17,26 @@ pub async fn upload_to_s3(
     let s3_client = s3::s3_client().await;
     s3::upload_file(
         &s3_client,
-        &S3_BUCKET_UPLOADS,
+        S3_BUCKET_UPLOADS,
         &s3_key_raw_code,
-        &TMP_ALGORITHM_RS,
+        Path::new(TMP_ALGORITHM_RS),
     )
     .await?;
+    if Path::new(TMP_METADATA_RS).exists() {
+        s3::upload_file(
+            &s3_client,
+            S3_BUCKET_UPLOADS,
+            &s3_key_metadata,
+            Path::new(TMP_METADATA_RS),
+        )
+        .await?;
+    }
     s3::upload_file(
         &s3_client,
-        &S3_BUCKET_UPLOADS,
-        &s3_key_metadata,
-        &TMP_METADATA_RS,
+        S3_BUCKET_UPLOADS,
+        &s3_key_cwasm,
+        Path::new(BUILT_CWASM),
     )
     .await?;
-    s3::upload_file(&s3_client, &S3_BUCKET_UPLOADS, &s3_key_cwasm, &BUILT_CWASM).await?;
     Ok(())
 }

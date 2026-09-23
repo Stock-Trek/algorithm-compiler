@@ -1,6 +1,8 @@
-use crate::{dto::response::to_http_response, handle_event::handle_event};
+use crate::{
+    dto::sqs::{SqsEvent, SqsMessage},
+    handle_event::handle_event,
+};
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
-use serde_json::{Value, json};
 use tracing_subscriber::{EnvFilter, fmt::Subscriber};
 
 mod compile;
@@ -8,6 +10,7 @@ mod constants;
 mod dto;
 mod handle_event;
 mod prepare_code;
+mod repo;
 mod s3;
 mod upload;
 
@@ -27,10 +30,10 @@ fn setup_tracing() -> Result<(), Error> {
     Ok(())
 }
 
-async fn function_handler(event: LambdaEvent<Value>) -> Result<Value, Error> {
-    let http_response = match handle_event(event).await {
-        Ok(response) => response,
-        Err(error) => to_http_response(error),
-    };
-    Ok(json!(http_response))
+async fn function_handler(event: LambdaEvent<SqsEvent>) -> Result<(), Error> {
+    for record in event.payload.records {
+        let message: SqsMessage = serde_json::from_str(&record.body)?;
+        handle_event(message).await?;
+    }
+    Ok(())
 }

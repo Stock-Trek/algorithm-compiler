@@ -2,18 +2,8 @@ use std::fmt::Debug;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StockTrekCompileAlgorithmError {
-    #[error("InvalidRequestError: {0:?}")]
-    InvalidRequest(Vec<String>),
     #[error("InternalServerError: {0:?}")]
     InternalServer(String),
-}
-
-pub fn invalid_request(errors: &[&str]) -> StockTrekCompileAlgorithmError {
-    let vec = errors
-        .iter()
-        .map(|&s| String::from(s))
-        .collect::<Vec<String>>();
-    StockTrekCompileAlgorithmError::InvalidRequest(vec)
 }
 
 pub fn internal_server(message: &str) -> StockTrekCompileAlgorithmError {

@@ -3,3 +3,4 @@ pub mod errors;
 pub mod metadata;
 pub mod request;
 pub mod response;
+pub mod sqs;
