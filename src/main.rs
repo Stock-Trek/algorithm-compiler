@@ -8,6 +8,7 @@ use tracing_subscriber::{EnvFilter, fmt::Subscriber};
 mod compile;
 mod constants;
 mod dto;
+mod dynamodb;
 mod handle_event;
 mod prepare_code;
 mod repo;
