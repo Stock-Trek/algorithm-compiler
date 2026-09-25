@@ -1,5 +1,7 @@
 use crate::{
-    dto::compile_result::{CodeLocation, CompileMessage, CompileResult},
+    dto::compile_result::{
+        CodeLocation, CompileMessage, CompileResult, RESULT_FAILURE, RESULT_SUCCESS,
+    },
     error::{ACError, ACResult},
     program::Program,
 };
@@ -24,8 +26,6 @@ const BUILT_CWASM: &str = "algorithm-runner.cwasm";
 const COMPILER_MESSAGE: &str = "compiler-message";
 const BUILD_FINISHED: &str = "build-finished";
 const LEVEL_ERROR: &str = "error";
-const RESULT_SUCCESS: &str = "SUCCESS";
-const RESULT_FAILURE: &str = "FAILURE";
 
 struct CompileOutput {
     success: bool,
