@@ -1,8 +1,8 @@
 use crate::{
     aws::Aws,
-    constants::{S3_BUCKET_UPLOADS, S3_UPLOADS_PREFIX},
-    dto::sqs_event::SqsRepoDetail,
-    error::ACResult,
+    constants::{S3_BUCKET_UPLOADS, S3_COMPILE_RESULT_FILE, S3_UPLOADS_PREFIX},
+    dto::{compile_result::CompileResult, sqs_event::SqsRepoDetail},
+    error::{ACError, ACResult},
     files::Files,
     git_repo::GitRepo,
     s3::S3ObjectRef,
@@ -26,13 +26,17 @@ impl CommitTask {
         }
     }
 
-    async fn upload_artifacts(&self, aws: &Aws, files: &Files) -> ACResult<()> {
-        let prefix = format!(
+    fn prefix(&self) -> String {
+        format!(
             "{}/{}/{S3_UPLOADS_PREFIX}/{}",
             Files::sanitize_path(&self.repo.account),
             Files::sanitize_path(&self.repo.repo),
             self.commit_hash
-        );
+        )
+    }
+
+    async fn upload_artifacts(&self, aws: &Aws, files: &Files) -> ACResult<()> {
+        let prefix = self.prefix();
         self.upload(
             aws,
             &format!("{prefix}/algorithm.rs"),
@@ -45,6 +49,25 @@ impl CommitTask {
                 .await?;
         }
         self.upload(aws, &format!("{prefix}/binary.cwasm"), &files.cwasm_file())
+            .await
+    }
+
+    async fn upload_compile_output(
+        &self,
+        aws: &Aws,
+        compile_result: &CompileResult,
+    ) -> ACResult<()> {
+        let body = serde_json::to_vec(compile_result).map_err(|error| {
+            ACError::InternalServer(format!("Failed to serialize compile result: {error}"))
+        })?;
+        aws.s3
+            .upload_bytes(
+                &S3ObjectRef {
+                    bucket: S3_BUCKET_UPLOADS.into(),
+                    key: format!("{}/{S3_COMPILE_RESULT_FILE}", self.prefix()),
+                },
+                body,
+            )
             .await
     }
 
@@ -76,7 +99,10 @@ impl TaskTrait for CommitTask {
             .locked(&refs.lock_ref, refs.sync(aws, &files, &repo))
             .await?;
         files.copy_algorithms(&self.commit_hash)?;
-        files.compile()?;
+        let compile_result = files.compile()?;
+        if compile_result.failed() {
+            return self.upload_compile_output(aws, &compile_result).await;
+        }
         self.upload_artifacts(aws, &files).await
     }
 }

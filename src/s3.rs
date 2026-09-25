@@ -21,11 +21,19 @@ impl S3 {
         let byte_stream = ByteStream::from_path(source_file_path)
             .await
             .map_err(|e| ACError::ByteStream(Box::new(e)))?;
+        self.put(object_ref, byte_stream).await
+    }
+
+    pub async fn upload_bytes(&self, object_ref: &S3ObjectRef, bytes: Vec<u8>) -> ACResult<()> {
+        self.put(object_ref, ByteStream::from(bytes)).await
+    }
+
+    async fn put(&self, object_ref: &S3ObjectRef, body: ByteStream) -> ACResult<()> {
         self.client
             .put_object()
             .bucket(&object_ref.bucket)
             .key(&object_ref.key)
-            .body(byte_stream)
+            .body(body)
             .send()
             .await
             .map_err(|e| ACError::S3PutObject(Box::new(e.into_service_error())))?;
