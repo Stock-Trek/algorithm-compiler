@@ -3,12 +3,12 @@ use crate::{
     files::Files,
     program::Program,
 };
-use std::{fs, path::PathBuf};
+use std::{fs, path::Path};
 
 pub struct Archive {}
 
 impl Archive {
-    pub fn create(source_dir: &PathBuf, archive: &PathBuf) -> ACResult<String> {
+    pub fn create(source_dir: &Path, archive: &Path) -> ACResult<String> {
         if let Some(parent) = archive.parent() {
             fs::create_dir_all(parent).map_err(ACError::FileSystem)?;
         }
@@ -25,7 +25,7 @@ impl Archive {
         )
     }
 
-    pub fn extract(archive: &PathBuf, sink_dir: &PathBuf) -> ACResult<String> {
+    pub fn extract(archive: &Path, sink_dir: &Path) -> ACResult<String> {
         Program::run(
             "tar",
             &[

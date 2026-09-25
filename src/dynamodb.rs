@@ -53,7 +53,9 @@ impl DynamoDb {
                         warn!("Lock for {:?} is held, retrying", datum_ref);
                         tokio::time::sleep(Duration::from_millis(LOCK_RETRY_DELAY_MS)).await;
                     } else {
-                        return Err(ACError::DynamoDbPutItem(error.into_service_error()));
+                        return Err(ACError::DynamoDbPutItem(Box::new(
+                            error.into_service_error(),
+                        )));
                     }
                 }
             }
@@ -80,7 +82,7 @@ impl DynamoDb {
             .expression_attribute_values(":lock_id", AttributeValue::S(lock.token.clone()))
             .send()
             .await
-            .map_err(|e| ACError::DynamoDbDeleteItem(e.into_service_error()))?;
+            .map_err(|e| ACError::DynamoDbDeleteItem(Box::new(e.into_service_error())))?;
         Ok(())
     }
 }

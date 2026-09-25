@@ -20,7 +20,7 @@ impl S3 {
     pub async fn upload(&self, object_ref: &S3ObjectRef, source_file_path: &Path) -> ACResult<()> {
         let byte_stream = ByteStream::from_path(source_file_path)
             .await
-            .map_err(|e| ACError::ByteStream(e))?;
+            .map_err(|e| ACError::ByteStream(Box::new(e)))?;
         self.client
             .put_object()
             .bucket(&object_ref.bucket)
@@ -28,7 +28,7 @@ impl S3 {
             .body(byte_stream)
             .send()
             .await
-            .map_err(|e| ACError::S3PutObject(e.into_service_error()))?;
+            .map_err(|e| ACError::S3PutObject(Box::new(e.into_service_error())))?;
         Ok(())
     }
 
@@ -50,7 +50,7 @@ impl S3 {
                     .body
                     .collect()
                     .await
-                    .map_err(|e| ACError::ByteStream(e))?
+                    .map_err(|e| ACError::ByteStream(Box::new(e)))?
                     .into_bytes();
                 std::fs::write(sink_file_path, &bytes).map_err(ACError::FileSystem)?;
                 Ok(true)
@@ -82,7 +82,8 @@ impl S3 {
             .send();
         let mut objects_to_delete: Vec<ObjectIdentifier> = Vec::new();
         while let Some(page) = paginator.next().await {
-            let page = page.map_err(|e| ACError::S3ListObjects(e.into_service_error()))?;
+            let page =
+                page.map_err(|e| ACError::S3ListObjects(Box::new(e.into_service_error())))?;
             for obj in page.contents() {
                 if let Some(key) = obj.key() {
                     objects_to_delete.push(
@@ -108,7 +109,7 @@ impl S3 {
                 .delete(delete)
                 .send()
                 .await
-                .map_err(|e| ACError::S3DeleteObjects(e.into_service_error()))?;
+                .map_err(|e| ACError::S3DeleteObjects(Box::new(e.into_service_error())))?;
         }
         Ok(())
     }
