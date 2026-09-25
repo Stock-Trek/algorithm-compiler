@@ -1,6 +1,6 @@
 use crate::error::{ACError, ACResult};
 use aws_sdk_dynamodb::{Client as DynamoDbClient, types::AttributeValue};
-use std::time::Duration;
+use std::{future::Future, time::Duration};
 use tracing::warn;
 use uuid::Uuid;
 
@@ -84,5 +84,19 @@ impl DynamoDb {
             .await
             .map_err(|e| ACError::DynamoDbDeleteItem(Box::new(e.into_service_error())))?;
         Ok(())
+    }
+
+    pub async fn locked<F, T>(&self, lock_ref: &DynamoDbDatumRef, action: F) -> ACResult<T>
+    where
+        F: Future<Output = ACResult<T>> + Send,
+        T: Send,
+    {
+        let lock = self.acquire_lock(lock_ref).await?;
+        let result = action.await;
+        let release = self.release_lock(lock_ref, &lock).await;
+        match result {
+            Ok(value) => release.map(|_| value),
+            Err(error) => Err(error),
+        }
     }
 }

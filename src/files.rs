@@ -62,7 +62,7 @@ impl Files {
 
     pub fn prepare(&self) -> ACResult<()> {
         self.clean()?;
-        copy_dir(Path::new(SOURCE), &self.build)
+        Self::copy_dir(Path::new(SOURCE), &self.build)
     }
 
     pub fn copy_algorithms(&self, revision: &str) -> ACResult<()> {
@@ -138,7 +138,7 @@ impl Files {
             .output()
             .map_err(ACError::CommandRun)?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-        let compile_output = get_compile_output(stdout)?;
+        let compile_output = CompileOutput::from_stdout(stdout)?;
         let error_count = compile_output
             .compile_messages
             .iter()
@@ -185,120 +185,114 @@ impl Files {
             compile_messages: vec![],
         })
     }
-}
 
-fn get_compile_output(stdout: String) -> ACResult<CompileOutput> {
-    info!("Get compile output from stdout");
-    let mut success = false;
-    let mut compile_messages = Vec::new();
-    for raw_line in stdout.lines() {
-        let cleaned_line = raw_line.trim();
-        if cleaned_line.is_empty() {
-            continue;
-        }
-        let values =
-            serde_json::from_str::<HashMap<String, Value>>(cleaned_line).map_err(|error| {
-                ACError::InternalServer(format!("Failed to parse compile output: {error}"))
-            })?;
-        let Some(reason) = values.get("reason").and_then(|value| value.as_str()) else {
-            continue;
-        };
-        match reason {
-            COMPILER_MESSAGE => add_compiler_messages(&mut compile_messages, &values),
-            BUILD_FINISHED => {
-                success = values
-                    .get("success")
-                    .and_then(|value| value.as_bool())
-                    .unwrap_or(false);
+    fn copy_dir(source: &Path, destination: &Path) -> ACResult<()> {
+        fs::create_dir_all(destination).map_err(ACError::FileSystem)?;
+        for entry in fs::read_dir(source).map_err(ACError::FileSystem)? {
+            let entry = entry.map_err(ACError::FileSystem)?;
+            let file_type = entry.file_type().map_err(ACError::FileSystem)?;
+            let target = destination.join(entry.file_name());
+            if file_type.is_dir() {
+                Self::copy_dir(&entry.path(), &target)?;
+            } else {
+                fs::copy(entry.path(), target).map_err(ACError::FileSystem)?;
             }
-            _ => {}
         }
+        Ok(())
     }
-    Ok(CompileOutput {
-        success,
-        compile_messages,
-    })
 }
 
-fn add_compiler_messages(
-    compile_messages: &mut Vec<CompileMessage>,
-    values: &HashMap<String, Value>,
-) {
-    let Some(message_dict) = values.get("message").and_then(|value| value.as_object()) else {
-        return;
-    };
-    let Some(level) = message_dict.get("level").and_then(|value| value.as_str()) else {
-        return;
-    };
-    let Some(message) = message_dict.get("message").and_then(|value| value.as_str()) else {
-        return;
-    };
-    let Some(spans) = message_dict.get("spans").and_then(|value| value.as_array()) else {
-        return;
-    };
-    for span in spans {
-        if let Some(compile_message) = span_to_compile_message(level, message, span) {
-            compile_messages.push(compile_message);
+impl CompileOutput {
+    fn from_stdout(stdout: String) -> ACResult<Self> {
+        info!("Get compile output from stdout");
+        let mut success = false;
+        let mut compile_messages = Vec::new();
+        for raw_line in stdout.lines() {
+            let cleaned_line = raw_line.trim();
+            if cleaned_line.is_empty() {
+                continue;
+            }
+            let values =
+                serde_json::from_str::<HashMap<String, Value>>(cleaned_line).map_err(|error| {
+                    ACError::InternalServer(format!("Failed to parse compile output: {error}"))
+                })?;
+            let Some(reason) = values.get("reason").and_then(|value| value.as_str()) else {
+                continue;
+            };
+            match reason {
+                COMPILER_MESSAGE => compile_messages.extend(CompileMessage::from_values(&values)),
+                BUILD_FINISHED => {
+                    success = values
+                        .get("success")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false);
+                }
+                _ => {}
+            }
         }
+        Ok(Self {
+            success,
+            compile_messages,
+        })
     }
 }
 
-fn span_to_compile_message(level: &str, message: &str, span: &Value) -> Option<CompileMessage> {
-    let is_primary = span
-        .get("is_primary")
-        .and_then(|value| value.as_bool())
-        .unwrap_or(false);
-    if !is_primary {
-        return None;
+impl CompileMessage {
+    fn from_values(values: &HashMap<String, Value>) -> Vec<Self> {
+        let Some(message_dict) = values.get("message").and_then(|value| value.as_object()) else {
+            return Vec::new();
+        };
+        let Some(level) = message_dict.get("level").and_then(|value| value.as_str()) else {
+            return Vec::new();
+        };
+        let Some(message) = message_dict.get("message").and_then(|value| value.as_str()) else {
+            return Vec::new();
+        };
+        let Some(spans) = message_dict.get("spans").and_then(|value| value.as_array()) else {
+            return Vec::new();
+        };
+        spans
+            .iter()
+            .filter_map(|span| Self::from_span(level, message, span))
+            .collect()
     }
-    let file_name = span
-        .get("file_name")
-        .and_then(|value| value.as_str())
-        .unwrap_or("");
-    if file_name != CHECKED_FILE_PATH {
-        warn!(
-            "Compile message from external file '{}': {} - {}",
-            file_name, level, message
-        );
-        return None;
-    }
-    Some(to_compile_message(
-        level.to_string(),
-        message.to_string(),
-        span,
-    ))
-}
 
-fn to_compile_message(level: String, message: String, span: &Value) -> CompileMessage {
-    CompileMessage {
-        start: CodeLocation {
-            line: to_int(span, "line_start"),
-            column: to_int(span, "column_start"),
-        },
-        end: CodeLocation {
-            line: to_int(span, "line_end"),
-            column: to_int(span, "column_end"),
-        },
-        level,
-        message,
-    }
-}
-
-fn to_int(span: &Value, key: &str) -> i32 {
-    span.get(key).and_then(|value| value.as_i64()).unwrap_or(0) as i32
-}
-
-fn copy_dir(source: &Path, destination: &Path) -> ACResult<()> {
-    fs::create_dir_all(destination).map_err(ACError::FileSystem)?;
-    for entry in fs::read_dir(source).map_err(ACError::FileSystem)? {
-        let entry = entry.map_err(ACError::FileSystem)?;
-        let file_type = entry.file_type().map_err(ACError::FileSystem)?;
-        let target = destination.join(entry.file_name());
-        if file_type.is_dir() {
-            copy_dir(&entry.path(), &target)?;
-        } else {
-            fs::copy(entry.path(), target).map_err(ACError::FileSystem)?;
+    fn from_span(level: &str, message: &str, span: &Value) -> Option<Self> {
+        let is_primary = span
+            .get("is_primary")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+        if !is_primary {
+            return None;
         }
+        let file_name = span
+            .get("file_name")
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        if file_name != CHECKED_FILE_PATH {
+            warn!(
+                "Compile message from external file '{}': {} - {}",
+                file_name, level, message
+            );
+            return None;
+        }
+        Some(Self {
+            start: CodeLocation {
+                line: CodeLocation::int(span, "line_start"),
+                column: CodeLocation::int(span, "column_start"),
+            },
+            end: CodeLocation {
+                line: CodeLocation::int(span, "line_end"),
+                column: CodeLocation::int(span, "column_end"),
+            },
+            level: level.to_string(),
+            message: message.to_string(),
+        })
     }
-    Ok(())
+}
+
+impl CodeLocation {
+    fn int(span: &Value, key: &str) -> i32 {
+        span.get(key).and_then(|value| value.as_i64()).unwrap_or(0) as i32
+    }
 }
