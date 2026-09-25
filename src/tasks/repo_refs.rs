@@ -30,7 +30,7 @@ impl RepoRefs {
             },
             repo_ref: S3ObjectRef {
                 bucket: S3_BUCKET_UPLOADS.into(),
-                key: format!("{S3_REPOS_PREFIX}/{account}/{repo}.tar.gz"),
+                key: format!("{account}/{repo}/{S3_REPOS_PREFIX}/{repo}.tar.gz"),
             },
         }
     }
@@ -38,7 +38,7 @@ impl RepoRefs {
     pub fn prefix(detail: &SqsRepoDetail) -> String {
         let account = Files::sanitize_path(&detail.account);
         let repo = Files::sanitize_path(&detail.repo);
-        format!("{S3_REPOS_PREFIX}/{account}/{repo}")
+        format!("{account}/{repo}/")
     }
 }
 
