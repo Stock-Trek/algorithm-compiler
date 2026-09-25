@@ -31,7 +31,7 @@ impl CommitTask {
 
     async fn upload_artifacts(&self, aws: &Aws, files: &Files) -> ACResult<()> {
         let prefix = format!(
-            "{S3_UPLOADS_PREFIX}/{}/{}/{}",
+            "{}/{}/{S3_UPLOADS_PREFIX}/{}",
             Files::sanitize_path(&self.repo.account),
             Files::sanitize_path(&self.repo.repo),
             self.commit_hash
