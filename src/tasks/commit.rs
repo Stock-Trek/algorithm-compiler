@@ -1,6 +1,6 @@
 use crate::{
     aws::Aws,
-    constants::{S3_BUCKET_UPLOADS, S3_COMPILE_RESULT_FILE, S3_UPLOADS_PREFIX},
+    constants::{S3_BUCKET_UPLOADS, S3_COMPILE_RESULT_FILE},
     dto::{compile_result::CompileResult, sqs_event::SqsRepoDetail},
     error::{ACError, ACResult},
     files::Files,
@@ -28,7 +28,7 @@ impl CommitTask {
 
     fn prefix(&self) -> String {
         format!(
-            "{}/{}/{S3_UPLOADS_PREFIX}/{}",
+            "{}/{}/{}",
             Files::sanitize_path(&self.repo.account),
             Files::sanitize_path(&self.repo.repo),
             self.commit_hash
