@@ -11,7 +11,6 @@ use crate::{
     git_repo::GitRepo,
     s3::S3ObjectRef,
 };
-use std::future::Future;
 
 pub struct RepoRefs {
     pub lock_ref: DynamoDbDatumRef,
@@ -40,32 +39,18 @@ impl RepoRefs {
         let repo = Files::sanitize_path(&detail.repo);
         format!("{account}/{repo}/")
     }
-}
 
-pub async fn sync_repo(aws: &Aws, files: &Files, refs: &RepoRefs, repo: &GitRepo) -> ACResult<()> {
-    files.prepare()?;
-    if aws.s3.download(&refs.repo_ref, &files.archive).await? {
-        Archive::extract(&files.archive, &files.repo)?;
-        repo.fetch(&files.repo)?;
-    } else {
-        repo.clone_bare(&files.repo)?;
-    }
-    repo.create_ref(&files.repo)?;
-    Archive::create(&files.repo, &files.archive)?;
-    aws.s3.upload(&refs.repo_ref, &files.archive).await?;
-    Ok(())
-}
-
-pub async fn locked<F, T>(aws: &Aws, lock_ref: &DynamoDbDatumRef, action: F) -> ACResult<T>
-where
-    F: Future<Output = ACResult<T>> + Send,
-    T: Send,
-{
-    let lock = aws.dynamodb.acquire_lock(lock_ref).await?;
-    let result = action.await;
-    let release = aws.dynamodb.release_lock(lock_ref, &lock).await;
-    match result {
-        Ok(value) => release.map(|_| value),
-        Err(error) => Err(error),
+    pub async fn sync(&self, aws: &Aws, files: &Files, repo: &GitRepo) -> ACResult<()> {
+        files.prepare()?;
+        if aws.s3.download(&self.repo_ref, &files.archive).await? {
+            Archive::extract(&files.archive, &files.repo)?;
+            repo.fetch(&files.repo)?;
+        } else {
+            repo.clone_bare(&files.repo)?;
+        }
+        repo.create_ref(&files.repo)?;
+        Archive::create(&files.repo, &files.archive)?;
+        aws.s3.upload(&self.repo_ref, &files.archive).await?;
+        Ok(())
     }
 }

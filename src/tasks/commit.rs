@@ -6,10 +6,7 @@ use crate::{
     files::Files,
     git_repo::GitRepo,
     s3::S3ObjectRef,
-    tasks::{
-        repo_refs::{RepoRefs, locked, sync_repo},
-        task::TaskTrait,
-    },
+    tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
 use async_trait::async_trait;
 use std::path::Path;
@@ -75,7 +72,9 @@ impl TaskTrait for CommitTask {
             Some(&self.commit_hash),
         );
         let files = Files::new();
-        locked(aws, &refs.lock_ref, sync_repo(aws, &files, &refs, &repo)).await?;
+        aws.dynamodb
+            .locked(&refs.lock_ref, refs.sync(aws, &files, &repo))
+            .await?;
         files.copy_algorithms(&self.commit_hash)?;
         files.compile()?;
         self.upload_artifacts(aws, &files).await
