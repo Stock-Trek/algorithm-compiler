@@ -1,28 +1,40 @@
 use crate::{
-    dto::errors::{StockTrekCompileAlgorithmError, internal_server, internal_server_e},
+    error::{ACError, ACResult},
+    files::Files,
     program::Program,
 };
-use std::{fs, path::Path};
+use std::{fs, path::PathBuf};
 
-const TAR: &str = "tar";
+pub struct Archive {}
 
-pub fn extract_archive(archive: &Path, dir: &Path) -> Result<(), StockTrekCompileAlgorithmError> {
-    Program::run(TAR, &["xzf", path_str(archive)?, "-C", path_str(dir)?], dir)
-}
-
-pub fn create_archive(dir: &Path, archive: &Path) -> Result<(), StockTrekCompileAlgorithmError> {
-    if let Some(parent) = archive.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| internal_server_e("Failed to create archive directory", e))?;
+impl Archive {
+    pub fn create(source_dir: &PathBuf, archive: &PathBuf) -> ACResult<String> {
+        if let Some(parent) = archive.parent() {
+            fs::create_dir_all(parent).map_err(ACError::FileSystem)?;
+        }
+        Program::run(
+            "tar",
+            &[
+                "czf",
+                Files::path_str(archive)?,
+                "-C",
+                Files::path_str(source_dir)?,
+                ".",
+            ],
+            source_dir,
+        )
     }
-    Program::run(
-        TAR,
-        &["czf", path_str(archive)?, "-C", path_str(dir)?, "."],
-        dir,
-    )
-}
 
-fn path_str(path: &Path) -> Result<&str, StockTrekCompileAlgorithmError> {
-    path.to_str()
-        .ok_or_else(|| internal_server("Path is not valid utf-8"))
+    pub fn extract(archive: &PathBuf, sink_dir: &PathBuf) -> ACResult<String> {
+        Program::run(
+            "tar",
+            &[
+                "xzf",
+                Files::path_str(archive)?,
+                "-C",
+                Files::path_str(sink_dir)?,
+            ],
+            sink_dir,
+        )
+    }
 }

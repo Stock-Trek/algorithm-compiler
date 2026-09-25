@@ -1,26 +1,33 @@
 use crate::{
-    dto::sqs::{SqsEvent, SqsMessage},
-    handle_event::handle_event,
+    aws::Aws,
+    dto::sqs_event::{SqsEvent, SqsMessage},
+    task::Task,
 };
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
+use std::sync::Arc;
 use tracing_subscriber::{EnvFilter, fmt::Subscriber};
 
 mod archive;
-mod compile;
-mod constants;
+mod aws;
 mod dto;
 mod dynamodb;
-mod handle_event;
-mod prepare_code;
+mod error;
+mod files;
+mod git_repo;
 mod program;
-mod repo;
 mod s3;
-mod upload;
+mod task;
+mod tasks;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     setup_tracing()?;
-    run(service_fn(function_handler)).await
+    let aws = Arc::new(Aws::new().await);
+    let handler = move |event: LambdaEvent<SqsEvent>| {
+        let aws_clone = aws.clone();
+        async move { function_handler(&aws_clone, event).await }
+    };
+    run(service_fn(handler)).await
 }
 
 fn setup_tracing() -> Result<(), Error> {
@@ -33,10 +40,11 @@ fn setup_tracing() -> Result<(), Error> {
     Ok(())
 }
 
-async fn function_handler(event: LambdaEvent<SqsEvent>) -> Result<(), Error> {
+async fn function_handler(aws: &Aws, event: LambdaEvent<SqsEvent>) -> Result<(), Error> {
     for record in event.payload.records {
         let message: SqsMessage = serde_json::from_str(&record.body)?;
-        handle_event(message).await?;
+        let task: Task = message.into();
+        task.handle(aws).await?;
     }
     Ok(())
 }
