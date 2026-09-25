@@ -1,7 +1,7 @@
 use crate::{
     aws::Aws,
     dto::sqs_event::{SqsEvent, SqsMessage},
-    task::Task,
+    task::TaskOld,
 };
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
 use std::sync::Arc;
@@ -43,7 +43,7 @@ fn setup_tracing() -> Result<(), Error> {
 async fn function_handler(aws: &Aws, event: LambdaEvent<SqsEvent>) -> Result<(), Error> {
     for record in event.payload.records {
         let message: SqsMessage = serde_json::from_str(&record.body)?;
-        let task: Task = message.into();
+        let task: TaskOld = message.into();
         task.handle(aws).await?;
     }
     Ok(())

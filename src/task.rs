@@ -14,7 +14,7 @@ const DYNAMODB_LOCK_TABLE: &str = "stock-trek-locks";
 const DYNAMODB_LOCK_KEY_ATTRIBUTE: &str = "git-repository";
 const S3_BUCKET_UPLOADS: &str = "stock-trek-uploads";
 
-pub struct Task {
+pub struct TaskOld {
     lock_ref: DynamoDbDatumRef,
     repo_ref: S3ObjectRef,
     files: Files,
@@ -22,7 +22,7 @@ pub struct Task {
     task: SqsMessage,
 }
 
-impl Task {
+impl TaskOld {
     pub async fn handle(&self, aws: &Aws) -> ACResult<()> {
         info!("Handle event for repo {:?}", self.repo);
         self.files.clean()?;
@@ -38,7 +38,7 @@ impl Task {
     }
 }
 
-impl Task {
+impl TaskOld {
     async fn sync(&self, aws: &Aws) -> ACResult<()> {
         if aws.s3.download(&self.repo_ref, &self.files.archive).await? {
             Archive::extract(&self.files.archive, &self.files.repo)?;
@@ -86,7 +86,7 @@ impl Task {
     }
 }
 
-impl From<SqsMessage> for Task {
+impl From<SqsMessage> for TaskOld {
     fn from(value: SqsMessage) -> Self {
         let SqsMessage { provider, detail } = value;
         match detail {

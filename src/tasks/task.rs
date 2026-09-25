@@ -11,7 +11,7 @@ use crate::{
 };
 use async_trait::async_trait;
 
-pub enum Task2 {
+pub enum Task {
     Rename(RenameTask),
     AddRepos(AddReposTask),
     RemoveRepos(RemoveReposTask),
@@ -48,7 +48,7 @@ pub trait TaskTrait {
 }
 
 #[async_trait]
-impl TaskTrait for Task2 {
+impl TaskTrait for Task {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
         match self {
             Self::AddRepos(task) => task.handle(aws).await,
@@ -59,7 +59,7 @@ impl TaskTrait for Task2 {
     }
 }
 
-impl From<SqsMessage> for Task2 {
+impl From<SqsMessage> for Task {
     fn from(value: SqsMessage) -> Self {
         let SqsMessage { provider, detail } = value;
         match detail {
@@ -76,9 +76,9 @@ impl From<SqsMessage> for Task2 {
     }
 }
 
-impl Task2 {
-    fn add_repos_task(provider: GitProvider, ids: Vec<SqsRepoDetail>) -> Task2 {
-        Task2::AddRepos(task)
+impl Task {
+    fn add_repos_task(provider: GitProvider, ids: Vec<SqsRepoDetail>) -> Task {
+        Task::AddRepos(task)
     }
     fn commit_task(
         provider: GitProvider,
@@ -86,13 +86,13 @@ impl Task2 {
         branch_name: String,
         commit_hash: String,
         forced: bool,
-    ) -> Task2 {
-        Task2::Commit(task)
+    ) -> Task {
+        Task::Commit(task)
     }
-    fn remove_repos_task(provider: GitProvider, ids: Vec<SqsRepoDetail>) -> Task2 {
-        Task2::RemoveRepos(RemoveReposTask { repos: ids })
+    fn remove_repos_task(provider: GitProvider, ids: Vec<SqsRepoDetail>) -> Task {
+        Task::RemoveRepos(RemoveReposTask { repos: ids })
     }
-    fn rename_task(provider: GitProvider, ids: SqsRepoDetail, names: SqsRepoDetail) -> Task2 {
-        Task2::Rename(task)
+    fn rename_task(provider: GitProvider, ids: SqsRepoDetail, names: SqsRepoDetail) -> Task {
+        Task::Rename(task)
     }
 }
