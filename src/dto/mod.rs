@@ -1,5 +1,2 @@
-pub mod compile_message;
-pub mod errors;
-pub mod metadata;
-pub mod request;
-pub mod response;
+pub mod compile_result;
+pub mod sqs_event;

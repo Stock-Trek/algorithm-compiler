@@ -17,6 +17,7 @@ FROM public.ecr.aws/lambda/provided:al2023
 RUN dnf install -y \
     clang \
     gcc \
+    git \
     protobuf-compiler \
     tar \
     xz \
