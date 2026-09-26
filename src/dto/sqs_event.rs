@@ -35,12 +35,14 @@ impl SqsEventResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SqsMessage {
     pub provider: GitProvider,
     pub detail: SqsDetail,
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, EnumIter, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum GitProvider {
     GitHub,
 }
@@ -54,6 +56,7 @@ impl GitProvider {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum SqsDetail {
     RenameRepo {
         ids: SqsRepoDetail,
@@ -73,7 +76,96 @@ pub enum SqsDetail {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SqsRepoDetail {
     pub account: String,
     pub repo: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{json, to_value};
+
+    fn repo_detail(account: &str, repo: &str) -> SqsRepoDetail {
+        SqsRepoDetail {
+            account: account.into(),
+            repo: repo.into(),
+        }
+    }
+
+    #[test]
+    fn serializes_commit_message_as_camel_case() {
+        let message = SqsMessage {
+            provider: GitProvider::GitHub,
+            detail: SqsDetail::Commit {
+                ids: repo_detail("acme", "widgets"),
+                branch_name: "main".into(),
+                commit_hash: "abc123".into(),
+            },
+        };
+
+        assert_eq!(
+            to_value(message).unwrap(),
+            json!({
+                "provider": "gitHub",
+                "detail": {
+                    "commit": {
+                        "ids": { "account": "acme", "repo": "widgets" },
+                        "branchName": "main",
+                        "commitHash": "abc123"
+                    }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn serializes_rename_message_as_camel_case() {
+        let message = SqsMessage {
+            provider: GitProvider::GitHub,
+            detail: SqsDetail::RenameRepo {
+                ids: repo_detail("acme", "widgets"),
+                new_names: repo_detail("acme", "gadgets"),
+            },
+        };
+
+        assert_eq!(
+            to_value(message).unwrap(),
+            json!({
+                "provider": "gitHub",
+                "detail": {
+                    "renameRepo": {
+                        "ids": { "account": "acme", "repo": "widgets" },
+                        "newNames": { "account": "acme", "repo": "gadgets" }
+                    }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn deserializes_camel_case_message() {
+        let message: SqsMessage = serde_json::from_value(json!({
+            "provider": "gitHub",
+            "detail": {
+                "addRepos": {
+                    "ids": [
+                        { "account": "acme", "repo": "widgets" }
+                    ]
+                }
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(
+            message,
+            SqsMessage {
+                provider: GitProvider::GitHub,
+                detail: SqsDetail::AddRepos {
+                    ids: vec![repo_detail("acme", "widgets")],
+                },
+            }
+        );
+    }
 }
