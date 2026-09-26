@@ -1,20 +1,31 @@
-use crate::error::{ACError, ACResult};
+use crate::{
+    error::{ACError, ACResult},
+    timeouts::Timeouts,
+};
 use std::{
-    io::Read,
     path::Path,
-    process::{Command, Stdio},
-    thread,
+    process::{ExitStatus, Output, Stdio},
+    time::Duration,
+};
+use tokio::{
+    io::{AsyncRead, AsyncReadExt},
+    process::{Child, ChildStdout, Command},
 };
 
 pub struct Program;
 
 impl Program {
-    pub fn run(program: &str, args: &[&str], cwd: &Path) -> ACResult<String> {
-        let output = Command::new(program)
-            .args(args)
-            .current_dir(cwd)
-            .output()
-            .map_err(ACError::CommandRun)?;
+    pub async fn run(program: &str, args: &[&str], cwd: &Path) -> ACResult<String> {
+        Self::run_with_timeout(program, args, cwd, Timeouts::command()).await
+    }
+
+    pub async fn run_with_timeout(
+        program: &str,
+        args: &[&str],
+        cwd: &Path,
+        timeout: Duration,
+    ) -> ACResult<String> {
+        let output = Self::output_with_timeout(program, args, cwd, timeout).await?;
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).into())
         } else {
@@ -24,59 +35,110 @@ impl Program {
         }
     }
 
-    pub fn pipe(commands: &mut [Command]) -> ACResult<std::process::Output> {
+    pub async fn output_with_timeout(
+        program: &str,
+        args: &[&str],
+        cwd: &Path,
+        timeout: Duration,
+    ) -> ACResult<Output> {
+        let child = Command::new(program)
+            .args(args)
+            .current_dir(cwd)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(ACError::CommandRun)?;
+        Self::collect_output(child, program, timeout).await
+    }
+
+    pub async fn pipe(commands: &mut [Command]) -> ACResult<Output> {
+        Self::pipe_with_timeout(commands, Timeouts::command()).await
+    }
+
+    pub async fn pipe_with_timeout(
+        commands: &mut [Command],
+        timeout: Duration,
+    ) -> ACResult<Output> {
         if commands.is_empty() {
             return Err(ACError::InternalServer(
                 "pipe needs at least one command".into(),
             ));
         }
         let command_len = commands.len();
-        let mut children: Vec<std::process::Child> = Vec::with_capacity(command_len);
+        let mut children: Vec<Child> = Vec::with_capacity(command_len);
         let mut programs: Vec<String> = Vec::with_capacity(command_len);
-        let mut prev_stdout: Option<std::process::ChildStdout> = None;
+        let mut prev_stdout: Option<ChildStdout> = None;
         for cmd in commands.iter_mut() {
-            programs.push(cmd.get_program().to_string_lossy().into_owned());
-            if let Some(out) = prev_stdout.take() {
-                cmd.stdin(out);
+            programs.push(cmd.as_std().get_program().to_string_lossy().into_owned());
+            if let Some(stdout) = prev_stdout.take() {
+                let stdin: Stdio = stdout.try_into().map_err(ACError::FileSystem)?;
+                cmd.stdin(stdin);
             }
             cmd.stdout(Stdio::piped());
             cmd.stderr(Stdio::piped());
-            let mut child = cmd.spawn().map_err(ACError::FileSystem)?;
-            prev_stdout = child.stdout.take();
-            children.push(child);
+            cmd.kill_on_drop(true);
+            match cmd.spawn() {
+                Ok(mut child) => {
+                    prev_stdout = child.stdout.take();
+                    children.push(child);
+                }
+                Err(error) => {
+                    for child in children.iter_mut() {
+                        let _ = child.start_kill();
+                    }
+                    return Err(ACError::FileSystem(error));
+                }
+            }
         }
+
         let mut stderr_handles = Vec::with_capacity(command_len);
         for child in children.iter_mut() {
-            let mut stderr = child
+            let stderr = child
                 .stderr
                 .take()
                 .ok_or_else(|| ACError::InternalServer("missing stderr pipe".into()))?;
-            stderr_handles.push(thread::spawn(move || {
-                let mut buffer = Vec::new();
-                let _ = stderr.read_to_end(&mut buffer);
-                buffer
-            }));
+            stderr_handles.push(tokio::spawn(Self::read_to_end(stderr)));
         }
-        let mut last_stdout = Vec::new();
-        if let Some(mut stdout) = prev_stdout {
-            stdout
-                .read_to_end(&mut last_stdout)
-                .map_err(ACError::FileSystem)?;
+        let last_stdout_handle = prev_stdout.map(|stdout| tokio::spawn(Self::read_to_end(stdout)));
+
+        let statuses = tokio::select! {
+            result = async {
+                let mut statuses: Vec<ExitStatus> = Vec::with_capacity(command_len);
+                for child in children.iter_mut() {
+                    statuses.push(child.wait().await.map_err(ACError::FileSystem)?);
+                }
+                Ok::<Vec<ExitStatus>, ACError>(statuses)
+            } => result?,
+            _ = tokio::time::sleep(timeout) => {
+                for child in children.iter_mut() {
+                    let _ = child.kill().await;
+                }
+                return Err(ACError::Timeout(format!(
+                    "{} exceeded timeout of {timeout:?}",
+                    programs.join(" | ")
+                )));
+            }
+        };
+
+        let mut last_stdout = match last_stdout_handle {
+            Some(handle) => Self::join_reader(handle).await?,
+            None => Vec::new(),
+        };
+        let mut stderrs = Vec::with_capacity(command_len);
+        for handle in stderr_handles {
+            stderrs.push(Self::join_reader(handle).await?);
         }
+
         let last = command_len - 1;
         let mut outputs = Vec::with_capacity(command_len);
-        for (i, (mut child, stderr_handle)) in children.into_iter().zip(stderr_handles).enumerate()
-        {
-            let status = child.wait().map_err(ACError::FileSystem)?;
-            let stderr = stderr_handle
-                .join()
-                .map_err(|_| ACError::InternalServer("stderr reader panicked".into()))?;
-            let stdout = if i == last {
+        for (index, (status, stderr)) in statuses.into_iter().zip(stderrs).enumerate() {
+            let stdout = if index == last {
                 std::mem::take(&mut last_stdout)
             } else {
                 Vec::new()
             };
-            outputs.push(std::process::Output {
+            outputs.push(Output {
                 status,
                 stdout,
                 stderr,
@@ -95,5 +157,61 @@ impl Program {
         outputs
             .pop()
             .ok_or_else(|| ACError::InternalServer("pipe produced no output".into()))
+    }
+
+    async fn collect_output(
+        mut child: Child,
+        program: &str,
+        timeout: Duration,
+    ) -> ACResult<Output> {
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| ACError::InternalServer("missing stdout pipe".into()))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| ACError::InternalServer("missing stderr pipe".into()))?;
+        let stdout_handle = tokio::spawn(Self::read_to_end(stdout));
+        let stderr_handle = tokio::spawn(Self::read_to_end(stderr));
+        let status = Self::wait_with_timeout(&mut child, program, timeout).await?;
+        let stdout = Self::join_reader(stdout_handle).await?;
+        let stderr = Self::join_reader(stderr_handle).await?;
+        Ok(Output {
+            status,
+            stdout,
+            stderr,
+        })
+    }
+
+    async fn wait_with_timeout(
+        child: &mut Child,
+        program: &str,
+        timeout: Duration,
+    ) -> ACResult<ExitStatus> {
+        tokio::select! {
+            status = child.wait() => status.map_err(ACError::FileSystem),
+            _ = tokio::time::sleep(timeout) => {
+                let _ = child.kill().await;
+                Err(ACError::Timeout(format!(
+                    "{program} exceeded timeout of {timeout:?}"
+                )))
+            }
+        }
+    }
+
+    async fn read_to_end<R: AsyncRead + Unpin>(mut reader: R) -> std::io::Result<Vec<u8>> {
+        let mut buffer = Vec::new();
+        reader.read_to_end(&mut buffer).await?;
+        Ok(buffer)
+    }
+
+    async fn join_reader(
+        handle: tokio::task::JoinHandle<std::io::Result<Vec<u8>>>,
+    ) -> ACResult<Vec<u8>> {
+        handle
+            .await
+            .map_err(|_| ACError::InternalServer("process output reader panicked".into()))?
+            .map_err(ACError::FileSystem)
     }
 }

@@ -29,29 +29,33 @@ impl GitRepo {
         }
     }
 
-    pub fn clone_bare(&self, path: &Path) -> ACResult<String> {
+    pub async fn clone_bare(&self, path: &Path) -> ACResult<String> {
         let destination = Files::path_str(path)?;
         self.exec_git(path, &["clone", "--bare", &self.clone_url, destination])
+            .await
     }
 
-    pub fn fetch(&self, path: &Path) -> ACResult<String> {
+    pub async fn fetch(&self, path: &Path) -> ACResult<String> {
         self.exec_git(path, &["fetch", "--prune", "--tags", "origin"])
+            .await
     }
 
-    pub fn set_remote(&self, path: &Path) -> ACResult<String> {
+    pub async fn set_remote(&self, path: &Path) -> ACResult<String> {
         self.exec_git(path, &["remote", "set-url", "origin", &self.clone_url])
+            .await
     }
 
-    pub fn create_ref(&self, path: &Path) -> ACResult<String> {
+    pub async fn create_ref(&self, path: &Path) -> ACResult<String> {
         match &self.commit {
             Some(commit) => {
                 self.exec_git(path, &["update-ref", &commit.ref_name, &commit.commit_hash])
+                    .await
             }
             None => Ok(String::new()),
         }
     }
 
-    fn exec_git(&self, path: &Path, args: &[&str]) -> ACResult<String> {
-        Program::run("git", args, path)
+    async fn exec_git(&self, path: &Path, args: &[&str]) -> ACResult<String> {
+        Program::run("git", args, path).await
     }
 }

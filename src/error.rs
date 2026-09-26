@@ -38,4 +38,6 @@ pub enum ACError {
     S3ListObjects(Box<ListObjectsV2Error>),
     #[error("S3PutObject: {0}")]
     S3PutObject(Box<PutObjectError>),
+    #[error("Timeout: {0}")]
+    Timeout(String),
 }

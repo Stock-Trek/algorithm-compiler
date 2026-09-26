@@ -21,6 +21,7 @@ mod git_repo;
 mod program;
 mod s3;
 mod tasks;
+mod timeouts;
 
 struct Tracing;
 
