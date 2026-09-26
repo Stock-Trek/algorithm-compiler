@@ -147,7 +147,7 @@ impl Files {
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
         self.save_compile_output(&stdout, &stderr)?;
-        let compile_output = CompileOutput::from_stdout(stdout)?;
+        let compile_output = CompileOutput::from_stdout(stdout);
         let error_count = compile_output.errors.len();
         if !compile_output.success && error_count == 0 {
             return Err(ACError::InternalServer(
@@ -214,7 +214,7 @@ impl Files {
 }
 
 impl CompileOutput {
-    fn from_stdout(stdout: String) -> ACResult<Self> {
+    fn from_stdout(stdout: String) -> Self {
         info!("Get compile output from stdout");
         let mut success = false;
         let mut errors = Vec::new();
@@ -224,10 +224,10 @@ impl CompileOutput {
             if cleaned_line.is_empty() {
                 continue;
             }
-            let values =
-                serde_json::from_str::<HashMap<String, Value>>(cleaned_line).map_err(|error| {
-                    ACError::InternalServer(format!("Failed to parse compile output: {error}"))
-                })?;
+            let Ok(values) = serde_json::from_str::<HashMap<String, Value>>(cleaned_line) else {
+                warn!("Ignoring non-JSON line in compile output: {cleaned_line}");
+                continue;
+            };
             let Some(reason) = values.get("reason").and_then(|value| value.as_str()) else {
                 continue;
             };
@@ -247,11 +247,11 @@ impl CompileOutput {
                 _ => {}
             }
         }
-        Ok(Self {
+        Self {
             success,
             errors,
             compile_messages,
-        })
+        }
     }
 }
 
@@ -336,5 +336,59 @@ impl CompileMessage {
 impl CodeLocation {
     fn int(span: &Value, key: &str) -> i32 {
         span.get(key).and_then(|value| value.as_i64()).unwrap_or(0) as i32
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ignores_non_json_lines() {
+        let stdout = concat!(
+            "plain build script output\n",
+            "{\"reason\":\"build-finished\",\"success\":true}\n",
+        )
+        .to_string();
+        let output = CompileOutput::from_stdout(stdout);
+        assert!(output.success);
+        assert!(output.errors.is_empty());
+        assert!(output.compile_messages.is_empty());
+    }
+
+    #[test]
+    fn surfaces_compile_errors_after_non_json_lines() {
+        let stdout = concat!(
+            "some stray text\n",
+            "{\"reason\":\"compiler-message\",\"message\":{\"level\":\"error\",\"message\":\"mismatched types\",\"spans\":[{\"is_primary\":true,\"file_name\":\"src/algorithms/algorithm.rs\",\"line_start\":1,\"column_start\":2,\"line_end\":1,\"column_end\":3}]}}\n",
+            "{\"reason\":\"build-finished\",\"success\":false}\n",
+        )
+        .to_string();
+        let output = CompileOutput::from_stdout(stdout);
+        assert!(!output.success);
+        assert_eq!(output.errors, vec!["mismatched types".to_string()]);
+        assert_eq!(output.compile_messages.len(), 1);
+    }
+
+    #[test]
+    fn ignores_other_json_shapes() {
+        let stdout = concat!(
+            "123\n",
+            "[]\n",
+            "\"just a string\"\n",
+            "{\"unexpected\":\"object\"}\n",
+            "{\"reason\":\"build-finished\",\"success\":true}\n",
+        )
+        .to_string();
+        let output = CompileOutput::from_stdout(stdout);
+        assert!(output.success);
+        assert!(output.errors.is_empty());
+    }
+
+    #[test]
+    fn handles_empty_stdout() {
+        let output = CompileOutput::from_stdout(String::new());
+        assert!(!output.success);
+        assert!(output.errors.is_empty());
     }
 }
