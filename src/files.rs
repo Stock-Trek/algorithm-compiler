@@ -2,13 +2,14 @@ use crate::{
     dto::compile_result::{CodeLocation, CompileMessage, CompileResult, CompileStatus},
     error::{ACError, ACResult},
     program::Program,
+    timeouts,
 };
 use serde_json::Value;
 use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
 };
 use tracing::{info, warn};
 
@@ -134,20 +135,19 @@ impl Files {
     fn build_wasm(&self) -> ACResult<CompileResult> {
         info!("Building wasm");
         let _ = fs::remove_file(self.build.join(BUILT_WASM));
-        let output = Command::new("cargo")
-            .args([
+        let output = Program::output_with_timeout(
+            "cargo",
+            &[
                 "build",
                 "--frozen",
                 "--target=wasm32-wasip1",
                 "--release",
                 "--message-format=json",
                 "--quiet",
-            ])
-            .current_dir(&self.build)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .map_err(ACError::CommandRun)?;
+            ],
+            &self.build,
+            timeouts::command(),
+        )?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
         let raw_output = Self::raw_compile_output(&stdout, &stderr);
