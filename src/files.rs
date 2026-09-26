@@ -1,7 +1,5 @@
 use crate::{
-    dto::compile_result::{
-        CodeLocation, CompileMessage, CompileResult, RESULT_FAILURE, RESULT_SUCCESS,
-    },
+    dto::compile_result::{CodeLocation, CompileMessage, CompileResult, CompileStatus},
     error::{ACError, ACResult},
     program::Program,
 };
@@ -165,7 +163,7 @@ impl Files {
         }
         if !compile_output.success {
             return Ok(CompileResult {
-                result: RESULT_FAILURE.into(),
+                result: CompileStatus::Failure,
                 errors: compile_output.errors,
                 compile_messages: compile_output.compile_messages,
             });
@@ -174,7 +172,7 @@ impl Files {
             return Err(ACError::InternalServer("WASM file was not built".into()));
         }
         Ok(CompileResult {
-            result: RESULT_SUCCESS.into(),
+            result: CompileStatus::Success,
             errors: compile_output.errors,
             compile_messages: vec![],
         })
