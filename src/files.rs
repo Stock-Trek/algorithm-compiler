@@ -20,7 +20,6 @@ const REPO_FOLDER: &str = "repo";
 const ARCHIVE_FILE: &str = "archive.tar.gz";
 const BUILD_FOLDER: &str = "build";
 const ALGORITHMS_FOLDER: &str = "src/algorithms";
-const CHECKED_FILE_PATH: &str = "src/algorithms/algorithm.rs";
 const BUILT_WASM: &str = "target/wasm32-wasip1/release/algorithm_runner.wasm";
 const BUILT_CWASM: &str = "algorithm-runner.cwasm";
 const COMPILER_MESSAGE: &str = "compiler-message";
@@ -288,14 +287,15 @@ impl CompileMessage {
             .get("file_name")
             .and_then(|value| value.as_str())
             .unwrap_or("");
-        if file_name != CHECKED_FILE_PATH {
+        let Some(file) = Self::user_file(file_name) else {
             warn!(
                 "Compile message from external file '{}': {} - {}",
                 file_name, level, message
             );
             return None;
-        }
+        };
         Some(Self {
+            file,
             start: CodeLocation {
                 line: CodeLocation::int(span, "line_start"),
                 column: CodeLocation::int(span, "column_start"),
@@ -307,6 +307,17 @@ impl CompileMessage {
             level: level.to_string(),
             message: message.to_string(),
         })
+    }
+
+    fn user_file(file_name: &str) -> Option<String> {
+        let normalized = file_name.replace('\\', "/");
+        let index = normalized.find(ALGORITHMS_FOLDER)?;
+        let path = &normalized[index..];
+        let in_folder = path
+            .as_bytes()
+            .get(ALGORITHMS_FOLDER.len())
+            .is_some_and(|byte| *byte == b'/');
+        in_folder.then(|| path.to_string())
     }
 }
 
