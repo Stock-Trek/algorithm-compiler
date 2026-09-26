@@ -1,6 +1,6 @@
 use crate::{
     error::{ACError, ACResult},
-    timeouts,
+    timeouts::Timeouts,
 };
 use std::{
     io::Read,
@@ -17,7 +17,7 @@ pub struct Program;
 
 impl Program {
     pub fn run(program: &str, args: &[&str], cwd: &Path) -> ACResult<String> {
-        Self::run_with_timeout(program, args, cwd, timeouts::command())
+        Self::run_with_timeout(program, args, cwd, Timeouts::command())
     }
 
     pub fn run_with_timeout(
@@ -53,7 +53,7 @@ impl Program {
     }
 
     pub fn pipe(commands: &mut [Command]) -> ACResult<Output> {
-        Self::pipe_with_timeout(commands, timeouts::command())
+        Self::pipe_with_timeout(commands, Timeouts::command())
     }
 
     pub fn pipe_with_timeout(commands: &mut [Command], timeout: Duration) -> ACResult<Output> {
@@ -94,10 +94,10 @@ impl Program {
                 .stderr
                 .take()
                 .ok_or_else(|| ACError::InternalServer("missing stderr pipe".into()))?;
-            stderr_handles.push(thread::spawn(move || read_to_end(stderr)));
+            stderr_handles.push(thread::spawn(move || Self::read_to_end(stderr)));
         }
         let last_stdout_handle =
-            prev_stdout.map(|stdout| thread::spawn(move || read_to_end(stdout)));
+            prev_stdout.map(|stdout| thread::spawn(move || Self::read_to_end(stdout)));
 
         let mut statuses: Vec<Option<ExitStatus>> = (0..command_len).map(|_| None).collect();
         let start = Instant::now();
@@ -128,12 +128,12 @@ impl Program {
         }
 
         let mut last_stdout = match last_stdout_handle {
-            Some(handle) => join_reader(handle)?,
+            Some(handle) => Self::join_reader(handle)?,
             None => Vec::new(),
         };
         let mut stderrs = Vec::with_capacity(command_len);
         for handle in stderr_handles {
-            stderrs.push(join_reader(handle)?);
+            stderrs.push(Self::join_reader(handle)?);
         }
 
         let last = command_len - 1;
@@ -176,11 +176,11 @@ impl Program {
             .stderr
             .take()
             .ok_or_else(|| ACError::InternalServer("missing stderr pipe".into()))?;
-        let stdout_handle = thread::spawn(move || read_to_end(stdout));
-        let stderr_handle = thread::spawn(move || read_to_end(stderr));
+        let stdout_handle = thread::spawn(move || Self::read_to_end(stdout));
+        let stderr_handle = thread::spawn(move || Self::read_to_end(stderr));
         let status = Self::wait_with_timeout(&mut child, program, timeout)?;
-        let stdout = join_reader(stdout_handle)?;
-        let stderr = join_reader(stderr_handle)?;
+        let stdout = Self::join_reader(stdout_handle)?;
+        let stderr = Self::join_reader(stderr_handle)?;
         Ok(Output {
             status,
             stdout,
@@ -208,17 +208,17 @@ impl Program {
             thread::sleep(COMMAND_POLL_INTERVAL);
         }
     }
-}
 
-fn read_to_end<R: Read>(mut reader: R) -> std::io::Result<Vec<u8>> {
-    let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer)?;
-    Ok(buffer)
-}
+    fn read_to_end<R: Read>(mut reader: R) -> std::io::Result<Vec<u8>> {
+        let mut buffer = Vec::new();
+        reader.read_to_end(&mut buffer)?;
+        Ok(buffer)
+    }
 
-fn join_reader(handle: thread::JoinHandle<std::io::Result<Vec<u8>>>) -> ACResult<Vec<u8>> {
-    handle
-        .join()
-        .map_err(|_| ACError::InternalServer("process output reader panicked".into()))?
-        .map_err(ACError::FileSystem)
+    fn join_reader(handle: thread::JoinHandle<std::io::Result<Vec<u8>>>) -> ACResult<Vec<u8>> {
+        handle
+            .join()
+            .map_err(|_| ACError::InternalServer("process output reader panicked".into()))?
+            .map_err(ACError::FileSystem)
+    }
 }

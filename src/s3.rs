@@ -1,6 +1,6 @@
 use crate::{
     error::{ACError, ACResult},
-    timeouts,
+    timeouts::Timeouts,
 };
 use aws_sdk_s3::{
     Client as S3Client,
@@ -87,7 +87,7 @@ impl S3 {
             .await
             .map_err(ACError::FileSystem)?;
         tokio::time::timeout(
-            timeouts::aws_operation(),
+            Timeouts::aws_operation(),
             tokio::io::copy(&mut body, &mut file),
         )
         .await

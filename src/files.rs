@@ -2,7 +2,7 @@ use crate::{
     dto::compile_result::{CodeLocation, CompileMessage, CompileResult, CompileStatus},
     error::{ACError, ACResult},
     program::Program,
-    timeouts,
+    timeouts::Timeouts,
 };
 use serde_json::Value;
 use std::{
@@ -146,7 +146,7 @@ impl Files {
                 "--quiet",
             ],
             &self.build,
-            timeouts::command(),
+            Timeouts::command(),
         )?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
