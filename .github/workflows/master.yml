@@ -61,7 +61,7 @@ jobs:
           VERSION_ALGORITHM_RUNNER=$(cargo pkgid --manifest-path algorithm-runner/Cargo.toml | sed 's|.*#||; s|.*:||; s|^v||')
           VERSIONED="compiler_${VERSION_ALGORITHM_COMPILER}_runner_${VERSION_ALGORITHM_RUNNER}"
           IMAGE_PREFIX="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/algorithm-compiler"
-          echo "image-master=${IMAGE_PREFIX}:${VERSIONED}" >> $GITHUB_OUTPUT
+          echo "image-master=${IMAGE_PREFIX}:master" >> $GITHUB_OUTPUT
           echo "image-versioned=${IMAGE_PREFIX}:${VERSIONED}" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
