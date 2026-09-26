@@ -46,28 +46,45 @@ pub enum GitProvider {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum SqsDetail {
     AddRepos {
+        installation_id: String,
         ids: Vec<SqsRepoId>,
     },
     RemoveRepos {
+        installation_id: String,
         ids: Vec<SqsRepoId>,
     },
+    AddAllRepos {
+        installation_id: String,
+        account_id: String,
+        account_login: String,
+    },
+    RemoveAllRepos {
+        installation_id: String,
+        account_id: String,
+        account_login: String,
+    },
     RenameRepo {
+        installation_id: String,
         id: SqsRepoId,
         name: SqsRepoName,
     },
     AddRef {
+        installation_id: String,
         id: SqsRepoId,
         ref_name: String,
         ref_type: SqsRefType,
     },
     DeleteRef {
+        installation_id: String,
         id: SqsRepoId,
         ref_name: String,
         ref_type: SqsRefType,
     },
     Commit {
+        installation_id: String,
         id: SqsRepoId,
         branch_name: String,
         commit_hash: String,
@@ -89,6 +106,7 @@ pub struct SqsRepoName {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SqsRefType {
     Branch,
     Tag,

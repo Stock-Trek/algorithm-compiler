@@ -42,19 +42,23 @@ impl From<SqsMessage> for Task {
     fn from(value: SqsMessage) -> Self {
         let SqsMessage { detail, .. } = value;
         match detail {
-            SqsDetail::AddRepos { ids } => Self::AddRepos(AddReposTask::new(ids)),
-            SqsDetail::RemoveRepos { ids } => Self::RemoveRepos(RemoveReposTask::new(ids)),
+            SqsDetail::AddRepos { ids, .. } => Self::AddRepos(AddReposTask::new(ids)),
+            SqsDetail::RemoveRepos { ids, .. } => Self::RemoveRepos(RemoveReposTask::new(ids)),
             SqsDetail::AddRef {
                 id,
                 ref_name,
                 ref_type,
+                ..
             } => Self::AddRef(AddRefTask::new(id, ref_name, ref_type)),
             SqsDetail::DeleteRef {
                 id,
                 ref_name,
                 ref_type,
+                ..
             } => Self::DeleteRef(DeleteRefTask::new(id, ref_name, ref_type)),
-            SqsDetail::RenameRepo { id, name } => Self::RenameRepo(RenameRepoTask::new(id, name)),
+            SqsDetail::RenameRepo { id, name, .. } => {
+                Self::RenameRepo(RenameRepoTask::new(id, name))
+            }
             SqsDetail::Commit {
                 id,
                 branch_name,
