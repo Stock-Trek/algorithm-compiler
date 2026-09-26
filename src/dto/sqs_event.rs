@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumIter};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SqsEvent {
@@ -36,13 +35,7 @@ impl SqsEventResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SqsMessage {
-    pub provider: GitProvider,
     pub detail: SqsDetail,
-}
-
-#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, EnumIter, Serialize, Deserialize)]
-pub enum GitProvider {
-    GitHub,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

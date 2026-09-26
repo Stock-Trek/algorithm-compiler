@@ -35,7 +35,7 @@ impl TaskTrait for Task {
 
 impl From<SqsMessage> for Task {
     fn from(value: SqsMessage) -> Self {
-        let SqsMessage { detail, .. } = value;
+        let SqsMessage { detail } = value;
         match detail {
             SqsDetail::AddRepos { ids } => Self::AddRepos(AddReposTask::new(ids)),
             SqsDetail::Commit {
