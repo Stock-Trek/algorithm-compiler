@@ -167,7 +167,7 @@ impl Files {
     async fn build_wasm(&self) -> ACResult<CompileResult> {
         info!("Building wasm");
         let _ = fs::remove_file(self.build.join(BUILT_WASM));
-        let output = Program::output_with_timeout(
+        let output = Program::output_with_clean_env(
             "cargo",
             &[
                 "build",
@@ -222,7 +222,7 @@ impl Files {
     async fn compile_cwasm(&self) -> ACResult<()> {
         info!("Compiling cwasm");
         let _ = fs::remove_file(self.build.join(BUILT_CWASM));
-        Program::run(
+        Program::run_with_clean_env(
             "wasmtime",
             &["compile", "-C", "cache=no", BUILT_WASM, "-o", BUILT_CWASM],
             &self.build,

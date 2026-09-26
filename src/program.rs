@@ -12,6 +12,26 @@ use tokio::{
     process::{Child, ChildStdout, Command},
 };
 
+/// Environment variables that are safe to expose to an untrusted build
+/// process. Everything else, including the AWS credentials injected by the
+/// Lambda runtime, is cleared so that attacker-controlled algorithm code
+/// cannot read secrets at compile time via `env!`, `option_env!`,
+/// `include_str!`, `include_bytes!`, build scripts, or on-disk files
+/// reachable through `HOME`.
+const CLEAN_ENV_ALLOWLIST: [&str; 11] = [
+    "PATH",
+    "CARGO_HOME",
+    "RUSTUP_HOME",
+    "RUSTUP_TOOLCHAIN",
+    "CARGO_TARGET_DIR",
+    "RUSTFLAGS",
+    "TMPDIR",
+    "LANG",
+    "LC_ALL",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+];
+
 pub struct Program;
 
 impl Program {
@@ -26,6 +46,45 @@ impl Program {
         timeout: Duration,
     ) -> ACResult<String> {
         let output = Self::output_with_timeout(program, args, cwd, timeout).await?;
+        Self::output_to_string(output)
+    }
+
+    /// Runs an untrusted command with a minimal, credential-free environment.
+    ///
+    /// Used for processing attacker-controlled sources and build artifacts so
+    /// that the Lambda's credentials and other secrets are never visible to
+    /// the spawned process.
+    pub async fn run_with_clean_env(program: &str, args: &[&str], cwd: &Path) -> ACResult<String> {
+        let output = Self::output_with_clean_env(program, args, cwd, Timeouts::command()).await?;
+        Self::output_to_string(output)
+    }
+
+    pub async fn output_with_timeout(
+        program: &str,
+        args: &[&str],
+        cwd: &Path,
+        timeout: Duration,
+    ) -> ACResult<Output> {
+        Self::output(Command::new(program), program, args, cwd, timeout).await
+    }
+
+    pub async fn output_with_clean_env(
+        program: &str,
+        args: &[&str],
+        cwd: &Path,
+        timeout: Duration,
+    ) -> ACResult<Output> {
+        let mut command = Command::new(program);
+        command.env_clear().env("HOME", cwd);
+        for key in CLEAN_ENV_ALLOWLIST {
+            if let Ok(value) = std::env::var(key) {
+                command.env(key, value);
+            }
+        }
+        Self::output(command, program, args, cwd, timeout).await
+    }
+
+    fn output_to_string(output: Output) -> ACResult<String> {
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).into())
         } else {
@@ -35,13 +94,14 @@ impl Program {
         }
     }
 
-    pub async fn output_with_timeout(
+    async fn output(
+        mut command: Command,
         program: &str,
         args: &[&str],
         cwd: &Path,
         timeout: Duration,
     ) -> ACResult<Output> {
-        let child = Command::new(program)
+        let child = command
             .args(args)
             .current_dir(cwd)
             .stdout(Stdio::piped())
