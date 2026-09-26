@@ -124,6 +124,7 @@ impl Files {
             &format!("--git-dir={git_dir}"),
             "archive",
             "--format=tar",
+            "--",
             &format!("{revision}:{ALGORITHMS_FOLDER}"),
         ]);
         let mut tar = Command::new("tar");
