@@ -19,6 +19,7 @@ const REPO_FOLDER: &str = "repo";
 const ARCHIVE_FILE: &str = "archive.tar.gz";
 pub const ALGORITHMS_ARCHIVE_FILE: &str = "algorithms.tar.gz";
 const BUILD_FOLDER: &str = "build";
+const TARGET_FOLDER: &str = "target";
 const ALGORITHMS_FOLDER: &str = "src/algorithms";
 const BUILT_WASM: &str = "target/wasm32-wasip1/release/algorithm_runner.wasm";
 const BUILT_CWASM: &str = "algorithm-runner.cwasm";
@@ -58,15 +59,42 @@ impl Files {
     }
 
     pub fn clean(&self) -> ACResult<()> {
+        let target = self.build.join(TARGET_FOLDER);
+        let cache = self.target_cache();
+        if target.exists() {
+            let _ = fs::remove_dir_all(&cache);
+            fs::rename(&target, &cache).map_err(ACError::FileSystem)?;
+        }
+        let restore_target = cache.exists();
         let _ = fs::remove_dir_all(&self.base);
         fs::create_dir_all(&self.repo).map_err(ACError::FileSystem)?;
         fs::create_dir_all(&self.build).map_err(ACError::FileSystem)?;
+        if restore_target {
+            fs::rename(&cache, &target).map_err(ACError::FileSystem)?;
+        }
         Ok(())
     }
 
     pub fn prepare(&self) -> ACResult<()> {
         self.clean()?;
-        Self::copy_dir(Path::new(SOURCE), &self.build)
+        Self::copy_dir(Path::new(SOURCE), &self.build)?;
+        self.seed_target()
+    }
+
+    fn seed_target(&self) -> ACResult<()> {
+        let target = self.build.join(TARGET_FOLDER);
+        if target.exists() {
+            return Ok(());
+        }
+        let source = Path::new(SOURCE).join(TARGET_FOLDER);
+        if source.is_dir() {
+            Self::copy_dir(&source, &target)?;
+        }
+        Ok(())
+    }
+
+    fn target_cache(&self) -> PathBuf {
+        PathBuf::from(format!("{BASE}-target"))
     }
 
     pub async fn copy_algorithms(&self, revision: &str) -> ACResult<()> {
