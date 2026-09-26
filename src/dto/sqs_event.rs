@@ -8,21 +8,21 @@ pub struct SqsEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SqsRecord {
-    #[serde(rename = "messageId")]
     pub message_id: String,
     pub body: String,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SqsEventResponse {
-    #[serde(rename = "batchItemFailures")]
     pub batch_item_failures: Vec<SqsBatchItemFailure>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SqsBatchItemFailure {
-    #[serde(rename = "itemIdentifier")]
     pub item_identifier: String,
 }
 

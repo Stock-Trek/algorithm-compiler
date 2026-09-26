@@ -44,14 +44,6 @@ impl Handler {
         Self { aws: Arc::new(aws) }
     }
 
-    async fn process_record(&self, body: &str) -> ACResult<()> {
-        let message: SqsMessage = serde_json::from_str(body).map_err(|error| {
-            ACError::InvalidMessage(format!("Failed to deserialize SQS message: {error}"))
-        })?;
-        let task: Task = message.into();
-        task.handle(&self.aws).await
-    }
-
     async fn handle(&self, event: LambdaEvent<SqsEvent>) -> Result<SqsEventResponse, Error> {
         let mut response = SqsEventResponse::default();
         for record in event.payload.records {
@@ -65,6 +57,14 @@ impl Handler {
             }
         }
         Ok(response)
+    }
+
+    async fn process_record(&self, body: &str) -> ACResult<()> {
+        let message: SqsMessage = serde_json::from_str(body).map_err(|error| {
+            ACError::InvalidMessage(format!("Failed to deserialize SQS message: {error}"))
+        })?;
+        let task: Task = message.into();
+        task.handle(&self.aws).await
     }
 }
 
