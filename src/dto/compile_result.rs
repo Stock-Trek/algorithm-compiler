@@ -1,11 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-pub const RESULT_SUCCESS: &str = "SUCCESS";
-pub const RESULT_FAILURE: &str = "FAILURE";
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompileStatus {
+    Success,
+    Failure,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompileResult {
-    pub result: String,
+    pub result: CompileStatus,
     pub errors: Vec<String>,
     pub compile_messages: Vec<CompileMessage>,
 }
@@ -27,6 +30,6 @@ pub struct CodeLocation {
 
 impl CompileResult {
     pub fn failed(&self) -> bool {
-        self.result == RESULT_FAILURE
+        self.result == CompileStatus::Failure
     }
 }
