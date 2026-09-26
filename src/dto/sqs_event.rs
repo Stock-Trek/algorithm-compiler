@@ -40,7 +40,7 @@ pub struct SqsMessage {
     pub detail: SqsDetail,
 }
 
-#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, EnumIter, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, EnumIter, Serialize, Deserialize)]
 pub enum GitProvider {
     GitHub,
 }
