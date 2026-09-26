@@ -72,7 +72,7 @@ impl Program {
         for cmd in commands.iter_mut() {
             programs.push(cmd.as_std().get_program().to_string_lossy().into_owned());
             if let Some(stdout) = prev_stdout.take() {
-                let stdin: Stdio = stdout.try_into().map_err(ACError::FileSystem)?;
+                let stdin: Stdio = stdout.try_into().map_err(ACError::CommandRun)?;
                 cmd.stdin(stdin);
             }
             cmd.stdout(Stdio::piped());
@@ -87,7 +87,7 @@ impl Program {
                     for child in children.iter_mut() {
                         let _ = child.start_kill();
                     }
-                    return Err(ACError::FileSystem(error));
+                    return Err(ACError::CommandRun(error));
                 }
             }
         }
@@ -106,7 +106,7 @@ impl Program {
             result = async {
                 let mut statuses: Vec<ExitStatus> = Vec::with_capacity(command_len);
                 for child in children.iter_mut() {
-                    statuses.push(child.wait().await.map_err(ACError::FileSystem)?);
+                    statuses.push(child.wait().await.map_err(ACError::CommandRun)?);
                 }
                 Ok::<Vec<ExitStatus>, ACError>(statuses)
             } => result?,
@@ -190,7 +190,7 @@ impl Program {
         timeout: Duration,
     ) -> ACResult<ExitStatus> {
         tokio::select! {
-            status = child.wait() => status.map_err(ACError::FileSystem),
+            status = child.wait() => status.map_err(ACError::CommandRun),
             _ = tokio::time::sleep(timeout) => {
                 let _ = child.kill().await;
                 Err(ACError::Timeout(format!(
@@ -212,6 +212,6 @@ impl Program {
         handle
             .await
             .map_err(|_| ACError::InternalServer("process output reader panicked".into()))?
-            .map_err(ACError::FileSystem)
+            .map_err(ACError::CommandRun)
     }
 }
