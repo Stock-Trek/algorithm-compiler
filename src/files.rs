@@ -26,6 +26,7 @@ const BUILT_CWASM: &str = "algorithm-runner.cwasm";
 const COMPILER_MESSAGE: &str = "compiler-message";
 const BUILD_FINISHED: &str = "build-finished";
 const LEVEL_ERROR: &str = "error";
+const IGNORED_DIRECTORIES: [&str; 2] = [".git", "target"];
 
 struct CompileOutput {
     success: bool,
@@ -185,6 +186,11 @@ impl Files {
         for entry in fs::read_dir(source).map_err(ACError::FileSystem)? {
             let entry = entry.map_err(ACError::FileSystem)?;
             let file_type = entry.file_type().map_err(ACError::FileSystem)?;
+            if file_type.is_dir()
+                && IGNORED_DIRECTORIES.contains(&entry.file_name().to_string_lossy().as_ref())
+            {
+                continue;
+            }
             let target = destination.join(entry.file_name());
             if file_type.is_dir() {
                 Self::copy_dir(&entry.path(), &target)?;
