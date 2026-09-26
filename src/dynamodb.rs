@@ -8,8 +8,8 @@ use tokio::task::JoinHandle;
 use tracing::{error, warn};
 use uuid::Uuid;
 
-const LOCK_RETRIES: u32 = 60;
-const LOCK_RETRY_DELAY_MS: u64 = 1000;
+const LOCK_RETRY_DELAY: Duration = Duration::from_secs(1);
+const LOCK_DEADLINE_BUFFER: Duration = Duration::from_secs(5);
 const LOCK_ID_ATTRIBUTE: &str = "lock_id";
 const LOCK_EXPIRES_AT_ATTRIBUTE: &str = "expires_at";
 const LOCK_TTL: Duration = Duration::from_secs(45);
@@ -44,9 +44,16 @@ pub struct DynamoDb {
 }
 
 impl DynamoDb {
-    pub async fn acquire_lock(&self, datum_ref: &DynamoDbDatumRef) -> ACResult<DynamoDbLock> {
+    pub async fn acquire_lock(
+        &self,
+        datum_ref: &DynamoDbDatumRef,
+        deadline: SystemTime,
+    ) -> ACResult<DynamoDbLock> {
         let token = Uuid::new_v4().to_string();
-        for _ in 0..LOCK_RETRIES {
+        let wait_until = deadline
+            .checked_sub(LOCK_DEADLINE_BUFFER)
+            .unwrap_or(deadline);
+        loop {
             let result = self
                 .client
                 .put_item()
@@ -76,8 +83,14 @@ impl DynamoDb {
                         .map(|e| e.is_conditional_check_failed_exception())
                         .unwrap_or(false);
                     if conditional {
+                        let remaining = wait_until
+                            .duration_since(SystemTime::now())
+                            .unwrap_or_default();
+                        if remaining.is_zero() {
+                            return Err(lock_timeout(datum_ref));
+                        }
                         warn!("Lock for {:?} is held, retrying", datum_ref);
-                        tokio::time::sleep(Duration::from_millis(LOCK_RETRY_DELAY_MS)).await;
+                        tokio::time::sleep(remaining.min(LOCK_RETRY_DELAY)).await;
                     } else if error.as_service_error().is_some() {
                         return Err(ACError::DynamoDbPutItem(Box::new(
                             error.into_service_error(),
@@ -91,10 +104,6 @@ impl DynamoDb {
                 }
             }
         }
-        Err(ACError::InternalServer(format!(
-            "Timed out acquiring lock for {:?}",
-            datum_ref
-        )))
     }
 
     pub async fn release_lock(
@@ -141,13 +150,18 @@ impl DynamoDb {
         }
     }
 
-    pub async fn locked<F, Fut, T>(&self, lock_ref: &DynamoDbDatumRef, action: F) -> ACResult<T>
+    pub async fn locked<F, Fut, T>(
+        &self,
+        lock_ref: &DynamoDbDatumRef,
+        deadline: SystemTime,
+        action: F,
+    ) -> ACResult<T>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = ACResult<T>> + Send,
         T: Send,
     {
-        let lock = self.acquire_lock(lock_ref).await?;
+        let lock = self.acquire_lock(lock_ref, deadline).await?;
         let heartbeat = LockHeartbeat {
             handle: self.spawn_heartbeat(lock_ref, &lock),
         };
@@ -226,6 +240,10 @@ impl DynamoDb {
             }
         })
     }
+}
+
+fn lock_timeout(datum_ref: &DynamoDbDatumRef) -> ACError {
+    ACError::LockTimeout(format!("Timed out acquiring lock for {:?}", datum_ref))
 }
 
 fn epoch_seconds() -> i64 {

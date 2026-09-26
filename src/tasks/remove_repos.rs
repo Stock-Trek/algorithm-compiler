@@ -5,6 +5,7 @@ use crate::{
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
 use async_trait::async_trait;
+use std::time::SystemTime;
 
 pub struct RemoveReposTask {
     repos: Vec<SqsRepoDetail>,
@@ -18,12 +19,12 @@ impl RemoveReposTask {
 
 #[async_trait]
 impl TaskTrait for RemoveReposTask {
-    async fn handle(&self, aws: &Aws) -> ACResult<()> {
+    async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         for detail in &self.repos {
             let refs = RepoRefs::new(&aws.config, detail)?;
             let prefix = RepoRefs::prefix(detail)?;
             aws.dynamodb
-                .locked(&refs.lock_ref, || async {
+                .locked(&refs.lock_ref, deadline, || async {
                     aws.s3
                         .delete_objects_with_prefix(&refs.repo_ref.bucket, &prefix)
                         .await

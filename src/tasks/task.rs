@@ -8,6 +8,7 @@ use crate::{
     },
 };
 use async_trait::async_trait;
+use std::time::SystemTime;
 
 pub enum Task {
     RenameRepo(RenameRepoTask),
@@ -18,17 +19,17 @@ pub enum Task {
 
 #[async_trait]
 pub trait TaskTrait {
-    async fn handle(&self, aws: &Aws) -> ACResult<()>;
+    async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()>;
 }
 
 #[async_trait]
 impl TaskTrait for Task {
-    async fn handle(&self, aws: &Aws) -> ACResult<()> {
+    async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         match self {
-            Self::RenameRepo(task) => task.handle(aws).await,
-            Self::AddRepos(task) => task.handle(aws).await,
-            Self::RemoveRepos(task) => task.handle(aws).await,
-            Self::Commit(task) => task.handle(aws).await,
+            Self::RenameRepo(task) => task.handle(aws, deadline).await,
+            Self::AddRepos(task) => task.handle(aws, deadline).await,
+            Self::RemoveRepos(task) => task.handle(aws, deadline).await,
+            Self::Commit(task) => task.handle(aws, deadline).await,
         }
     }
 }

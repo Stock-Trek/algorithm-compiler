@@ -13,7 +13,7 @@ use crate::{
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
 use async_trait::async_trait;
-use std::path::Path;
+use std::{path::Path, time::SystemTime};
 
 pub struct CommitTask {
     provider: GitProvider,
@@ -106,7 +106,7 @@ impl CommitTask {
 
 #[async_trait]
 impl TaskTrait for CommitTask {
-    async fn handle(&self, aws: &Aws) -> ACResult<()> {
+    async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let refs = RepoRefs::new(&aws.config, &self.repo)?;
         let repo = GitRepo::new(
             &self.provider,
@@ -116,7 +116,7 @@ impl TaskTrait for CommitTask {
         );
         let files = Files::new();
         aws.dynamodb
-            .locked(&refs.lock_ref, || async {
+            .locked(&refs.lock_ref, deadline, || async {
                 refs.sync(aws, &files, &repo).await?;
                 files.copy_algorithms(&self.commit_hash)?;
                 let compile_result = files.compile();

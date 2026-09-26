@@ -30,6 +30,8 @@ pub enum ACError {
     InternalServer(String),
     #[error("InvalidMessage: {0}")]
     InvalidMessage(String),
+    #[error("LockTimeout: {0}")]
+    LockTimeout(String),
     #[error("S3DeleteObjects: {0}")]
     S3DeleteObjects(Box<DeleteObjectsError>),
     #[error("S3GetObject: {0}")]
