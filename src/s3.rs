@@ -13,6 +13,12 @@ pub struct S3ObjectRef {
     pub key: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DownloadOutcome {
+    Downloaded,
+    NotFound,
+}
+
 pub struct S3 {
     pub client: S3Client,
     pub operation_timeout: Duration,
@@ -46,7 +52,7 @@ impl S3 {
         &self,
         object_ref: &S3ObjectRef,
         sink_file_path: &Path,
-    ) -> ACResult<bool> {
+    ) -> ACResult<DownloadOutcome> {
         let result = self
             .client
             .get_object()
@@ -67,7 +73,7 @@ impl S3 {
                     let _ = tokio::fs::remove_file(sink_file_path).await;
                     return Err(error);
                 }
-                Ok(true)
+                Ok(DownloadOutcome::Downloaded)
             }
             Err(error) => {
                 if error
@@ -75,7 +81,7 @@ impl S3 {
                     .map(|e| e.is_no_such_key())
                     .unwrap_or(false)
                 {
-                    Ok(false)
+                    Ok(DownloadOutcome::NotFound)
                 } else {
                     Err(ACError::S3GetObject(Box::new(error.into_service_error())))
                 }

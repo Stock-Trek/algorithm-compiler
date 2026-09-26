@@ -5,6 +5,7 @@ use crate::{
     error::ACResult,
     files::Files,
     git_repo::GitRepo,
+    s3::DownloadOutcome,
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
 use async_trait::async_trait;
@@ -42,7 +43,9 @@ impl TaskTrait for RenameRepoTask {
             .locked(&refs.lock_ref, deadline, move |lock| async move {
                 let files = Files::new();
                 files.clean()?;
-                if !aws.s3.download(&refs_ref.repo_ref, &files.archive).await? {
+                if aws.s3.download(&refs_ref.repo_ref, &files.archive).await?
+                    == DownloadOutcome::NotFound
+                {
                     return Ok(());
                 }
                 Archive::extract(&files.archive, &files.repo)?;
