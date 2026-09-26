@@ -74,10 +74,7 @@ impl S3 {
                 {
                     Ok(false)
                 } else {
-                    Err(ACError::InternalServer(format!(
-                        "Failed to download object {:?}",
-                        object_ref
-                    )))
+                    Err(ACError::S3GetObject(Box::new(error.into_service_error())))
                 }
             }
         }
