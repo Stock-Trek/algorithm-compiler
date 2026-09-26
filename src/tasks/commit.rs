@@ -3,7 +3,7 @@ use crate::{
     aws::Aws,
     constants::{S3_COMPILE_OUTPUT_FILE, S3_COMPILE_RESULT_FILE},
     dto::{
-        compile_result::CompileResult,
+        compile_result::{CompileResult, CompileStatus},
         sqs_event::{GitProvider, SqsRepoDetail},
     },
     error::{ACError, ACResult},
@@ -151,7 +151,7 @@ impl TaskTrait for CommitTask {
                 let bucket = &aws.config.s3_bucket_commit_artifacts;
                 self.upload_compile_output(bucket, &s3, &compile_result)
                     .await?;
-                if compile_result.failed() {
+                if compile_result.result != CompileStatus::Success {
                     self.upload_raw_compile_output(bucket, &s3, files).await?;
                     return Ok(());
                 }
