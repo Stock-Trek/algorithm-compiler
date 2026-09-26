@@ -117,11 +117,11 @@ impl Files {
         let sanitized: String = value
             .chars()
             .map(|c| match c {
-                '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | ' ' => '_',
+                '.' | '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | ' ' => '_',
                 other => other,
             })
             .collect();
-        if sanitized.is_empty() || sanitized == "." || sanitized == ".." {
+        if sanitized.is_empty() {
             return "_".to_string();
         }
         sanitized
