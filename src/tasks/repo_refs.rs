@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     constants::{DYNAMODB_LOCK_KEY_ATTRIBUTE, S3_REPOS_PREFIX},
     dto::sqs_event::SqsRepoDetail,
-    dynamodb::DynamoDbDatumRef,
+    dynamodb::{DynamoDbDatumRef, DynamoDbLock},
     error::ACResult,
     files::Files,
     git_repo::GitRepo,
@@ -39,7 +39,13 @@ impl RepoRefs {
         Ok(format!("{account}/{repo}/"))
     }
 
-    pub async fn sync(&self, aws: &Aws, files: &Files, repo: &GitRepo) -> ACResult<()> {
+    pub async fn sync(
+        &self,
+        aws: &Aws,
+        files: &Files,
+        repo: &GitRepo,
+        lock: &DynamoDbLock,
+    ) -> ACResult<()> {
         files.prepare()?;
         if aws.s3.download(&self.repo_ref, &files.archive).await? {
             Archive::extract(&files.archive, &files.repo)?;
@@ -49,7 +55,9 @@ impl RepoRefs {
         }
         repo.create_ref(&files.repo).await?;
         Archive::create(&files.repo, &files.archive)?;
-        aws.s3.upload(&self.repo_ref, &files.archive).await?;
+        aws.fenced_s3(&self.lock_ref, lock)
+            .upload(&self.repo_ref, &files.archive)
+            .await?;
         Ok(())
     }
 }

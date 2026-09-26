@@ -1,7 +1,8 @@
 use crate::{
     config::Config,
-    dynamodb::DynamoDb,
+    dynamodb::{DynamoDb, DynamoDbDatumRef, DynamoDbLock},
     error::{ACError, ACResult},
+    fenced::FencedS3,
     s3::S3,
     timeouts::Timeouts,
 };
@@ -58,5 +59,13 @@ impl Aws {
                 client: S3Client::new(&sdk_config),
             },
         }
+    }
+
+    pub fn fenced_s3<'a>(
+        &'a self,
+        datum_ref: &'a DynamoDbDatumRef,
+        lock: &'a DynamoDbLock,
+    ) -> FencedS3<'a> {
+        FencedS3::new(&self.dynamodb, &self.s3, datum_ref, lock)
     }
 }

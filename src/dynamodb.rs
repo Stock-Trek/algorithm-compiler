@@ -20,14 +20,14 @@ const LOCK_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15);
 const LOCK_ACQUIRE_CONDITION: &str =
     "attribute_not_exists(#key) OR attribute_not_exists(#expires) OR #expires < :now";
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DynamoDbDatumRef {
     pub table: String,
     pub key_name: String,
     pub key_value: String,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DynamoDbLock {
     token: String,
 }
@@ -65,8 +65,13 @@ impl DynamoDbDatumRef {
     fn lock_timeout(&self) -> ACError {
         ACError::LockTimeout(format!("Timed out acquiring lock for {:?}", self))
     }
+
+    fn lock_lost(&self) -> ACError {
+        ACError::LockLost(format!("Lost lock for {:?}", self))
+    }
 }
 
+#[derive(Clone)]
 pub struct DynamoDb {
     pub client: DynamoDbClient,
 }
@@ -163,11 +168,7 @@ impl DynamoDb {
                     .map(|e| e.is_conditional_check_failed_exception())
                     .unwrap_or(false);
                 if conditional {
-                    warn!(
-                        lock = %datum_ref.key_value,
-                        "Lock expired or was taken over before it could be released",
-                    );
-                    Ok(())
+                    Err(datum_ref.lock_lost())
                 } else if error.as_service_error().is_some() {
                     Err(ACError::DynamoDbDeleteItem(Box::new(
                         error.into_service_error(),
@@ -182,6 +183,51 @@ impl DynamoDb {
         }
     }
 
+    pub async fn assert_lock_held(
+        &self,
+        datum_ref: &DynamoDbDatumRef,
+        lock: &DynamoDbLock,
+    ) -> ACResult<()> {
+        let result = self
+            .client
+            .update_item()
+            .table_name(&datum_ref.table)
+            .key(
+                &datum_ref.key_name,
+                AttributeValue::S(datum_ref.key_value.clone()),
+            )
+            .update_expression(format!("SET {LOCK_EXPIRES_AT_ATTRIBUTE} = :expires_at"))
+            .condition_expression(format!("{LOCK_ID_ATTRIBUTE} = :lock_id"))
+            .expression_attribute_values(
+                ":expires_at",
+                AttributeValue::N(DynamoDbLock::expires_at().to_string()),
+            )
+            .expression_attribute_values(":lock_id", AttributeValue::S(lock.token.clone()))
+            .send()
+            .await;
+        match result {
+            Ok(_) => Ok(()),
+            Err(error) => {
+                let conditional = error
+                    .as_service_error()
+                    .map(|e| e.is_conditional_check_failed_exception())
+                    .unwrap_or(false);
+                if conditional {
+                    Err(datum_ref.lock_lost())
+                } else if error.as_service_error().is_some() {
+                    Err(ACError::DynamoDbUpdateItem(Box::new(
+                        error.into_service_error(),
+                    )))
+                } else {
+                    Err(ACError::InternalServer(format!(
+                        "Failed to refresh lock for {:?}: {error}",
+                        datum_ref
+                    )))
+                }
+            }
+        }
+    }
+
     pub async fn locked<F, Fut, T>(
         &self,
         lock_ref: &DynamoDbDatumRef,
@@ -189,7 +235,7 @@ impl DynamoDb {
         action: F,
     ) -> ACResult<T>
     where
-        F: FnOnce() -> Fut,
+        F: FnOnce(DynamoDbLock) -> Fut,
         Fut: Future<Output = ACResult<T>> + Send,
         T: Send,
     {
@@ -197,73 +243,44 @@ impl DynamoDb {
         let heartbeat = LockHeartbeat {
             handle: self.spawn_heartbeat(lock_ref, &lock),
         };
-        let result = action().await;
+        let result = action(lock.clone()).await;
         drop(heartbeat);
-        let release = self.release_lock(lock_ref, &lock).await;
-        match result {
-            Ok(value) => {
-                if let Err(release_error) = release {
-                    error!(
-                        lock = %lock_ref.key_value,
-                        %release_error,
-                        "Failed to release lock after successful action",
-                    );
-                }
-                Ok(value)
-            }
-            Err(error) => {
-                if let Err(release_error) = release {
-                    error!(
-                        lock = %lock_ref.key_value,
-                        %release_error,
-                        "Failed to release lock after action failed",
-                    );
-                }
+        match (result, self.release_lock(lock_ref, &lock).await) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Ok(_), Err(release_error)) => Err(release_error),
+            (Err(error), Ok(())) => Err(error),
+            (Err(error), Err(release_error)) => {
+                error!(
+                    lock = %lock_ref.key_value,
+                    %release_error,
+                    "Failed to release lock after action failed",
+                );
                 Err(error)
             }
         }
     }
 
     fn spawn_heartbeat(&self, datum_ref: &DynamoDbDatumRef, lock: &DynamoDbLock) -> JoinHandle<()> {
-        let client = self.client.clone();
-        let table = datum_ref.table.clone();
-        let key_name = datum_ref.key_name.clone();
-        let key_value = datum_ref.key_value.clone();
-        let token = lock.token.clone();
+        let dynamodb = self.clone();
+        let datum_ref = datum_ref.clone();
+        let lock = lock.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(LOCK_HEARTBEAT_INTERVAL);
             interval.tick().await;
             loop {
                 interval.tick().await;
-                let result = client
-                    .update_item()
-                    .table_name(&table)
-                    .key(&key_name, AttributeValue::S(key_value.clone()))
-                    .update_expression(format!("SET {LOCK_EXPIRES_AT_ATTRIBUTE} = :expires_at"))
-                    .condition_expression(format!("{LOCK_ID_ATTRIBUTE} = :lock_id"))
-                    .expression_attribute_values(
-                        ":expires_at",
-                        AttributeValue::N(DynamoDbLock::expires_at().to_string()),
-                    )
-                    .expression_attribute_values(":lock_id", AttributeValue::S(token.clone()))
-                    .send()
-                    .await;
-                match result {
-                    Ok(_) => {}
-                    Err(error) => {
-                        let conditional = error
-                            .as_service_error()
-                            .map(|e| e.is_conditional_check_failed_exception())
-                            .unwrap_or(false);
-                        if conditional {
-                            warn!(
-                                lock = %key_value,
-                                "Lock is no longer held, stopping heartbeat",
-                            );
-                            return;
-                        }
+                match dynamodb.assert_lock_held(&datum_ref, &lock).await {
+                    Ok(()) => {}
+                    Err(ACError::LockLost(_)) => {
                         warn!(
-                            lock = %key_value,
+                            lock = %datum_ref.key_value,
+                            "Lock is no longer held, stopping heartbeat",
+                        );
+                        return;
+                    }
+                    Err(error) => {
+                        warn!(
+                            lock = %datum_ref.key_value,
                             %error,
                             "Failed to refresh lock",
                         );
