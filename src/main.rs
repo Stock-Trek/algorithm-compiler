@@ -19,6 +19,7 @@ mod error;
 mod fenced;
 mod files;
 mod git_repo;
+mod github;
 mod program;
 mod s3;
 mod tasks;
@@ -89,7 +90,7 @@ impl Handler {
 async fn main() -> Result<(), Error> {
     Tracing::setup()?;
     let config = Config::from_env()?;
-    let handler = Handler::new(Aws::new(config).await);
+    let handler = Handler::new(Aws::new(config).await?);
     run(service_fn(move |event| {
         let handler = handler.clone();
         async move { handler.handle(event).await }

@@ -114,6 +114,27 @@ impl S3 {
         Ok(())
     }
 
+    pub async fn list_keys_with_prefix(&self, bucket: &str, prefix: &str) -> ACResult<Vec<String>> {
+        let mut paginator = self
+            .client
+            .list_objects_v2()
+            .bucket(bucket)
+            .prefix(prefix)
+            .into_paginator()
+            .send();
+        let mut keys = Vec::new();
+        while let Some(page) = paginator.next().await {
+            let page =
+                page.map_err(|e| ACError::S3ListObjects(Box::new(e.into_service_error())))?;
+            for object in page.contents() {
+                if let Some(key) = object.key() {
+                    keys.push(key.to_string());
+                }
+            }
+        }
+        Ok(keys)
+    }
+
     pub async fn delete_objects_with_prefix(&self, bucket: &str, prefix: &str) -> ACResult<()> {
         let mut paginator = self
             .client
