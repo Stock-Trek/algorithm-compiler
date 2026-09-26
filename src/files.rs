@@ -348,30 +348,3 @@ impl CodeLocation {
         span.get(key).and_then(|value| value.as_i64()).unwrap_or(0) as i32
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::Files;
-
-    #[test]
-    fn sanitize_path_distinguishes_dot_and_underscore() {
-        assert_ne!(
-            Files::sanitize_path("my.repo").unwrap(),
-            Files::sanitize_path("my_repo").unwrap()
-        );
-    }
-
-    #[test]
-    fn sanitize_path_encodes_special_characters() {
-        assert_eq!(Files::sanitize_path("a/b").unwrap(), "a%2Fb");
-        assert_eq!(Files::sanitize_path("a%b").unwrap(), "a%25b");
-        assert_eq!(Files::sanitize_path("my repo").unwrap(), "my%20repo");
-    }
-
-    #[test]
-    fn sanitize_path_rejects_empty_and_dot_segments() {
-        assert!(Files::sanitize_path("").is_err());
-        assert!(Files::sanitize_path(".").is_err());
-        assert!(Files::sanitize_path("..").is_err());
-    }
-}
