@@ -17,10 +17,10 @@ pub struct RepoRefs {
 }
 
 impl RepoRefs {
-    pub fn new(config: &Config, detail: &SqsRepoDetail) -> Self {
-        let account = Files::sanitize_path(&detail.account);
-        let repo = Files::sanitize_path(&detail.repo);
-        Self {
+    pub fn new(config: &Config, detail: &SqsRepoDetail) -> ACResult<Self> {
+        let account = Files::sanitize_path(&detail.account)?;
+        let repo = Files::sanitize_path(&detail.repo)?;
+        Ok(Self {
             lock_ref: DynamoDbDatumRef {
                 table: config.dynamodb_lock_table.clone(),
                 key_name: DYNAMODB_LOCK_KEY_ATTRIBUTE.into(),
@@ -30,13 +30,13 @@ impl RepoRefs {
                 bucket: config.s3_bucket_commit_artifacts.clone(),
                 key: format!("{account}/{repo}/{S3_REPOS_PREFIX}/{repo}.tar.gz"),
             },
-        }
+        })
     }
 
-    pub fn prefix(detail: &SqsRepoDetail) -> String {
-        let account = Files::sanitize_path(&detail.account);
-        let repo = Files::sanitize_path(&detail.repo);
-        format!("{account}/{repo}/")
+    pub fn prefix(detail: &SqsRepoDetail) -> ACResult<String> {
+        let account = Files::sanitize_path(&detail.account)?;
+        let repo = Files::sanitize_path(&detail.repo)?;
+        Ok(format!("{account}/{repo}/"))
     }
 
     pub async fn sync(&self, aws: &Aws, files: &Files, repo: &GitRepo) -> ACResult<()> {

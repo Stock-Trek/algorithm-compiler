@@ -22,7 +22,7 @@ impl AddReposTask {
 impl TaskTrait for AddReposTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
         for detail in &self.repos {
-            let refs = RepoRefs::new(&aws.config, detail);
+            let refs = RepoRefs::new(&aws.config, detail)?;
             let repo = GitRepo::new(&detail.account, &detail.repo, None);
             let files = Files::new();
             aws.dynamodb

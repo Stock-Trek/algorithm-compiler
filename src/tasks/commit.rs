@@ -26,17 +26,17 @@ impl CommitTask {
         }
     }
 
-    fn prefix(&self) -> String {
-        format!(
+    fn prefix(&self) -> ACResult<String> {
+        Ok(format!(
             "{}/{}/{}",
-            Files::sanitize_path(&self.repo.account),
-            Files::sanitize_path(&self.repo.repo),
-            Files::sanitize_path(&self.commit_hash)
-        )
+            Files::sanitize_path(&self.repo.account)?,
+            Files::sanitize_path(&self.repo.repo)?,
+            Files::sanitize_path(&self.commit_hash)?
+        ))
     }
 
     async fn upload_artifacts(&self, aws: &Aws, files: &Files) -> ACResult<()> {
-        let prefix = self.prefix();
+        let prefix = self.prefix()?;
         self.upload(
             aws,
             &format!("{prefix}/algorithm.rs"),
@@ -64,7 +64,7 @@ impl CommitTask {
             .upload_bytes(
                 &S3ObjectRef {
                     bucket: aws.config.s3_bucket_commit_artifacts.clone(),
-                    key: format!("{}/{S3_COMPILE_RESULT_FILE}", self.prefix()),
+                    key: format!("{}/{S3_COMPILE_RESULT_FILE}", self.prefix()?),
                 },
                 body,
             )
@@ -78,7 +78,7 @@ impl CommitTask {
         }
         self.upload(
             aws,
-            &format!("{}/{S3_COMPILE_OUTPUT_FILE}", self.prefix()),
+            &format!("{}/{S3_COMPILE_OUTPUT_FILE}", self.prefix()?),
             &path,
         )
         .await
@@ -100,7 +100,7 @@ impl CommitTask {
 #[async_trait]
 impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
-        let refs = RepoRefs::new(&aws.config, &self.repo);
+        let refs = RepoRefs::new(&aws.config, &self.repo)?;
         let repo = GitRepo::new(
             &self.repo.account,
             &self.repo.repo,
