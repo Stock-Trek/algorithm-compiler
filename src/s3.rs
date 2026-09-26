@@ -54,13 +54,16 @@ impl S3 {
             .await;
         match result {
             Ok(output) => {
-                let bytes = output
-                    .body
-                    .collect()
+                let mut body = output.body.into_async_read();
+                let mut file = tokio::fs::File::create(sink_file_path)
                     .await
-                    .map_err(|e| ACError::ByteStream(Box::new(e)))?
-                    .into_bytes();
-                std::fs::write(sink_file_path, &bytes).map_err(ACError::FileSystem)?;
+                    .map_err(ACError::FileSystem)?;
+                tokio::io::copy(&mut body, &mut file)
+                    .await
+                    .map_err(ACError::FileSystem)?;
+                tokio::io::AsyncWriteExt::flush(&mut file)
+                    .await
+                    .map_err(ACError::FileSystem)?;
                 Ok(true)
             }
             Err(error) => {
