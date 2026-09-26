@@ -5,7 +5,6 @@ use aws_sdk_s3::operation::{
     delete_objects::DeleteObjectsError, get_object::GetObjectError,
     list_objects_v2::ListObjectsV2Error, put_object::PutObjectError,
 };
-use aws_sdk_sqs::operation::send_message::SendMessageError;
 use aws_smithy_types::byte_stream;
 use std::fmt::Debug;
 
@@ -49,8 +48,6 @@ pub enum ACError {
     S3ListObjects(Box<ListObjectsV2Error>),
     #[error("S3PutObject: {0}")]
     S3PutObject(Box<PutObjectError>),
-    #[error("SqsSendMessage: {0}")]
-    SqsSendMessage(Box<SendMessageError>),
     #[error("Timeout: {0}")]
     Timeout(String),
 }
