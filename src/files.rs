@@ -113,13 +113,17 @@ impl Files {
     }
 
     pub fn sanitize_path(value: &str) -> String {
-        value
+        let sanitized: String = value
             .chars()
             .map(|c| match c {
-                '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | ' ' => '_',
+                '.' | '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | ' ' => '_',
                 other => other,
             })
-            .collect()
+            .collect();
+        if sanitized.is_empty() {
+            return "_".to_string();
+        }
+        sanitized
     }
 
     pub fn path_str(path: &Path) -> ACResult<&str> {
