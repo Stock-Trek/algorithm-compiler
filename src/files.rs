@@ -191,9 +191,7 @@ impl Files {
         .await?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-        let raw_output = Self::raw_compile_output(&stdout, &stderr);
-        self.save_compile_output(&raw_output)?;
-        let compile_output = CompileOutput::from_stdout(stdout);
+        let compile_output = CompileOutput::from_stdout(&stdout);
         let error_count = compile_output.errors.len();
         if compile_output.success && error_count > 0 {
             return Err(ACError::InternalServer(
@@ -201,11 +199,11 @@ impl Files {
             ));
         }
         if !compile_output.success {
+            self.save_compile_output(&Self::raw_compile_output(&stdout, &stderr))?;
             return Ok(CompileResult {
                 result: CompileStatus::Failure,
                 errors: compile_output.errors,
                 compile_messages: compile_output.compile_messages,
-                raw_output: Some(raw_output),
             });
         }
         if !self.build.join(BUILT_WASM).exists() {
@@ -215,7 +213,6 @@ impl Files {
             result: CompileStatus::Success,
             errors: compile_output.errors,
             compile_messages: vec![],
-            raw_output: None,
         })
     }
 
@@ -262,7 +259,7 @@ impl Files {
 }
 
 impl CompileOutput {
-    fn from_stdout(stdout: String) -> Self {
+    fn from_stdout(stdout: &str) -> Self {
         info!("Get compile output from stdout");
         let mut success = false;
         let mut errors = Vec::new();

@@ -12,8 +12,6 @@ pub struct CompileResult {
     pub result: CompileStatus,
     pub errors: Vec<String>,
     pub compile_messages: Vec<CompileMessage>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub raw_output: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

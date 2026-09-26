@@ -146,14 +146,13 @@ impl TaskTrait for CommitTask {
                 files
                     .copy_algorithms(&self.commit_hash, aws.config.timeouts.command)
                     .await?;
-                let compile_result = files.compile(aws.config.timeouts.command).await;
+                let compile_result = files.compile(aws.config.timeouts.command).await?;
                 let s3 = aws.fenced_s3(&refs_ref.lock_ref, &lock);
                 let bucket = &aws.config.s3_bucket_commit_artifacts;
-                self.upload_raw_compile_output(bucket, &s3, files).await?;
-                let compile_result = compile_result?;
                 self.upload_compile_output(bucket, &s3, &compile_result)
                     .await?;
                 if compile_result.failed() {
+                    self.upload_raw_compile_output(bucket, &s3, files).await?;
                     return Ok(());
                 }
                 self.upload_artifacts(bucket, &s3, files).await
