@@ -20,7 +20,7 @@ impl RemoveReposTask {
 impl TaskTrait for RemoveReposTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
         for detail in &self.repos {
-            let refs = RepoRefs::new(detail);
+            let refs = RepoRefs::new(&aws.config, detail);
             let prefix = RepoRefs::prefix(detail);
             aws.dynamodb
                 .locked(&refs.lock_ref, || async {

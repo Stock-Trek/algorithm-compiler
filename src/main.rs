@@ -1,5 +1,6 @@
 use crate::{
     aws::Aws,
+    config::Config,
     dto::sqs_event::{SqsEvent, SqsEventResponse, SqsMessage},
     error::{ACError, ACResult},
     tasks::task::{Task, TaskTrait},
@@ -10,6 +11,7 @@ use tracing_subscriber::{EnvFilter, fmt::Subscriber};
 
 mod archive;
 mod aws;
+mod config;
 mod constants;
 mod dto;
 mod dynamodb;
@@ -71,7 +73,8 @@ impl Handler {
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     Tracing::setup()?;
-    let handler = Handler::new(Aws::new().await);
+    let config = Config::from_env()?;
+    let handler = Handler::new(Aws::new(config).await);
     run(service_fn(move |event| {
         let handler = handler.clone();
         async move { handler.handle(event).await }

@@ -1,9 +1,8 @@
 use crate::{
     archive::Archive,
     aws::Aws,
-    constants::{
-        DYNAMODB_LOCK_KEY_ATTRIBUTE, DYNAMODB_LOCK_TABLE, S3_BUCKET_UPLOADS, S3_REPOS_PREFIX,
-    },
+    config::Config,
+    constants::{DYNAMODB_LOCK_KEY_ATTRIBUTE, S3_REPOS_PREFIX},
     dto::sqs_event::SqsRepoDetail,
     dynamodb::DynamoDbDatumRef,
     error::ACResult,
@@ -18,17 +17,17 @@ pub struct RepoRefs {
 }
 
 impl RepoRefs {
-    pub fn new(detail: &SqsRepoDetail) -> Self {
+    pub fn new(config: &Config, detail: &SqsRepoDetail) -> Self {
         let account = Files::sanitize_path(&detail.account);
         let repo = Files::sanitize_path(&detail.repo);
         Self {
             lock_ref: DynamoDbDatumRef {
-                table: DYNAMODB_LOCK_TABLE.into(),
+                table: config.dynamodb_lock_table.clone(),
                 key_name: DYNAMODB_LOCK_KEY_ATTRIBUTE.into(),
                 key_value: format!("{account}/{repo}"),
             },
             repo_ref: S3ObjectRef {
-                bucket: S3_BUCKET_UPLOADS.into(),
+                bucket: config.s3_bucket_uploads.clone(),
                 key: format!("{account}/{repo}/{S3_REPOS_PREFIX}/{repo}.tar.gz"),
             },
         }
