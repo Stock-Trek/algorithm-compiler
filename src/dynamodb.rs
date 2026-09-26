@@ -91,9 +91,51 @@ impl DynamoDb {
         F: Future<Output = ACResult<T>> + Send,
         T: Send,
     {
-        let lock = self.acquire_lock(lock_ref).await?;
+        self.locked_many(&[lock_ref], action).await
+    }
+
+    pub async fn locked_many<F, T>(&self, lock_refs: &[&DynamoDbDatumRef], action: F) -> ACResult<T>
+    where
+        F: Future<Output = ACResult<T>> + Send,
+        T: Send,
+    {
+        // Acquire locks in a deterministic order and without duplicates so that
+        // concurrent operations needing overlapping locks cannot deadlock.
+        let mut ordered: Vec<&DynamoDbDatumRef> = lock_refs.to_vec();
+        ordered.sort_by(|a, b| {
+            (a.table.as_str(), a.key_name.as_str(), a.key_value.as_str()).cmp(&(
+                b.table.as_str(),
+                b.key_name.as_str(),
+                b.key_value.as_str(),
+            ))
+        });
+        ordered.dedup_by(|a, b| {
+            a.table == b.table && a.key_name == b.key_name && a.key_value == b.key_value
+        });
+
+        let mut locks = Vec::with_capacity(ordered.len());
+        for lock_ref in &ordered {
+            match self.acquire_lock(lock_ref).await {
+                Ok(lock) => locks.push(lock),
+                Err(error) => {
+                    for (lock_ref, lock) in ordered.iter().zip(locks.iter()).rev() {
+                        if let Err(release_error) = self.release_lock(lock_ref, lock).await {
+                            warn!("Failed to release lock for {:?}: {release_error}", lock_ref);
+                        }
+                    }
+                    return Err(error);
+                }
+            }
+        }
+
         let result = action.await;
-        let release = self.release_lock(lock_ref, &lock).await;
+
+        let mut release = Ok(());
+        for (lock_ref, lock) in ordered.iter().zip(locks.iter()).rev() {
+            if let Err(error) = self.release_lock(lock_ref, lock).await {
+                release = Err(error);
+            }
+        }
         match result {
             Ok(value) => release.map(|_| value),
             Err(error) => Err(error),

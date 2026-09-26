@@ -81,6 +81,11 @@ impl S3 {
     }
 
     pub async fn delete_objects_with_prefix(&self, bucket: &str, prefix: &str) -> ACResult<()> {
+        let keys = self.list_keys_with_prefix(bucket, prefix).await?;
+        self.delete_keys(bucket, &keys).await
+    }
+
+    pub async fn list_keys_with_prefix(&self, bucket: &str, prefix: &str) -> ACResult<Vec<String>> {
         let mut paginator = self
             .client
             .list_objects_v2()
@@ -88,27 +93,31 @@ impl S3 {
             .prefix(prefix)
             .into_paginator()
             .send();
-        let mut objects_to_delete: Vec<ObjectIdentifier> = Vec::new();
+        let mut keys = Vec::new();
         while let Some(page) = paginator.next().await {
             let page =
                 page.map_err(|e| ACError::S3ListObjects(Box::new(e.into_service_error())))?;
             for obj in page.contents() {
                 if let Some(key) = obj.key() {
-                    objects_to_delete.push(
-                        ObjectIdentifier::builder()
-                            .key(key)
-                            .build()
-                            .map_err(ACError::Build)?,
-                    );
+                    keys.push(key.to_string());
                 }
             }
         }
-        if objects_to_delete.is_empty() {
+        Ok(keys)
+    }
+
+    pub async fn delete_keys(&self, bucket: &str, keys: &[String]) -> ACResult<()> {
+        if keys.is_empty() {
             return Ok(());
         }
-        for chunk in objects_to_delete.chunks(1000) {
+        for chunk in keys.chunks(1000) {
+            let objects = chunk
+                .iter()
+                .map(|key| ObjectIdentifier::builder().key(key.as_str()).build())
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(ACError::Build)?;
             let delete = Delete::builder()
-                .set_objects(Some(chunk.to_vec()))
+                .set_objects(Some(objects))
                 .build()
                 .map_err(ACError::Build)?;
             self.client
@@ -119,6 +128,18 @@ impl S3 {
                 .await
                 .map_err(|e| ACError::S3DeleteObjects(Box::new(e.into_service_error())))?;
         }
+        Ok(())
+    }
+
+    pub async fn copy(&self, source: &S3ObjectRef, destination: &S3ObjectRef) -> ACResult<()> {
+        self.client
+            .copy_object()
+            .bucket(&destination.bucket)
+            .key(&destination.key)
+            .copy_source(format!("{}/{}", source.bucket, source.key))
+            .send()
+            .await
+            .map_err(|e| ACError::S3CopyObject(Box::new(e.into_service_error())))?;
         Ok(())
     }
 }
