@@ -16,6 +16,7 @@ const BASE: &str = "/tmp/algorithm-compiler";
 const SOURCE: &str = "./algorithm-runner";
 const REPO_FOLDER: &str = "repo";
 const ARCHIVE_FILE: &str = "archive.tar.gz";
+pub const ALGORITHMS_ARCHIVE_FILE: &str = "algorithms.tar.gz";
 const BUILD_FOLDER: &str = "build";
 const ALGORITHMS_FOLDER: &str = "src/algorithms";
 const BUILT_WASM: &str = "target/wasm32-wasip1/release/algorithm_runner.wasm";
@@ -38,6 +39,7 @@ pub struct Files {
     pub repo: PathBuf,
     pub build: PathBuf,
     pub algorithms: PathBuf,
+    pub algorithms_archive: PathBuf,
 }
 
 impl Files {
@@ -48,6 +50,7 @@ impl Files {
             archive: base.join(ARCHIVE_FILE),
             repo: base.join(REPO_FOLDER),
             algorithms: build.join(ALGORITHMS_FOLDER),
+            algorithms_archive: base.join(ALGORITHMS_ARCHIVE_FILE),
             build,
             base,
         }
@@ -92,14 +95,6 @@ impl Files {
         }
         self.compile_cwasm()?;
         Ok(compile_result)
-    }
-
-    pub fn algorithm_file(&self) -> PathBuf {
-        self.algorithms.join("algorithm.rs")
-    }
-
-    pub fn metadata_file(&self) -> PathBuf {
-        self.algorithms.join("metadata.rs")
     }
 
     pub fn cwasm_file(&self) -> PathBuf {

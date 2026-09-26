@@ -1,9 +1,10 @@
 use crate::{
+    archive::Archive,
     aws::Aws,
     constants::{S3_COMPILE_OUTPUT_FILE, S3_COMPILE_RESULT_FILE},
     dto::{compile_result::CompileResult, sqs_event::SqsRepoDetail},
     error::{ACError, ACResult},
-    files::Files,
+    files::{ALGORITHMS_ARCHIVE_FILE, Files},
     git_repo::GitRepo,
     s3::S3ObjectRef,
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
@@ -37,17 +38,13 @@ impl CommitTask {
 
     async fn upload_artifacts(&self, aws: &Aws, files: &Files) -> ACResult<()> {
         let prefix = self.prefix()?;
+        Archive::create(&files.algorithms, &files.algorithms_archive)?;
         self.upload(
             aws,
-            &format!("{prefix}/algorithm.rs"),
-            &files.algorithm_file(),
+            &format!("{prefix}/{ALGORITHMS_ARCHIVE_FILE}"),
+            &files.algorithms_archive,
         )
         .await?;
-        let metadata = files.metadata_file();
-        if metadata.exists() {
-            self.upload(aws, &format!("{prefix}/metadata.rs"), &metadata)
-                .await?;
-        }
         self.upload(aws, &format!("{prefix}/binary.cwasm"), &files.cwasm_file())
             .await
     }
