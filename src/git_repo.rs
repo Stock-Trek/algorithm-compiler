@@ -64,7 +64,7 @@ impl GitRepo {
             Some(commit) => {
                 self.exec_git(
                     path,
-                    &["update-ref", &commit.ref_name, &commit.commit_hash],
+                    &["update-ref", "--", &commit.ref_name, &commit.commit_hash],
                     deadline,
                 )
                 .await
