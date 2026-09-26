@@ -8,7 +8,7 @@ use crate::{
     error::ACResult,
     files::Files,
     git_repo::GitRepo,
-    s3::S3ObjectRef,
+    s3::{DownloadOutcome, S3ObjectRef},
 };
 
 pub struct RepoRefs {
@@ -47,11 +47,14 @@ impl RepoRefs {
         lock: &DynamoDbLock,
     ) -> ACResult<()> {
         files.prepare()?;
-        if aws.s3.download(&self.repo_ref, &files.archive).await? {
-            Archive::extract(&files.archive, &files.repo)?;
-            repo.fetch(&files.repo).await?;
-        } else {
-            repo.clone_bare(&files.repo).await?;
+        match aws.s3.download(&self.repo_ref, &files.archive).await? {
+            DownloadOutcome::Downloaded => {
+                Archive::extract(&files.archive, &files.repo)?;
+                repo.fetch(&files.repo).await?;
+            }
+            DownloadOutcome::NotFound => {
+                repo.clone_bare(&files.repo).await?;
+            }
         }
         repo.create_ref(&files.repo).await?;
         Archive::create(&files.repo, &files.archive)?;
