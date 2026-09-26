@@ -10,6 +10,7 @@ use crate::{
     git_repo::GitRepo,
     s3::{DownloadOutcome, S3ObjectRef},
 };
+use std::time::SystemTime;
 
 pub struct RepoRefs {
     pub lock_ref: DynamoDbDatumRef,
@@ -45,18 +46,19 @@ impl RepoRefs {
         files: &Files,
         repo: &GitRepo,
         lock: &DynamoDbLock,
+        deadline: SystemTime,
     ) -> ACResult<()> {
         files.prepare()?;
         match aws.s3.download(&self.repo_ref, &files.archive).await? {
             DownloadOutcome::Downloaded => {
                 Archive::extract(&files.archive, &files.repo)?;
-                repo.fetch(&files.repo).await?;
+                repo.fetch(&files.repo, deadline).await?;
             }
             DownloadOutcome::NotFound => {
-                repo.clone_bare(&files.repo).await?;
+                repo.clone_bare(&files.repo, deadline).await?;
             }
         }
-        repo.create_ref(&files.repo).await?;
+        repo.create_ref(&files.repo, deadline).await?;
         Archive::create(&files.repo, &files.archive)?;
         aws.fenced_s3(&self.lock_ref, lock)
             .upload(&self.repo_ref, &files.archive)

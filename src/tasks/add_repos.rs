@@ -30,14 +30,14 @@ impl TaskTrait for AddReposTask {
                 &detail.account,
                 &detail.repo,
                 None,
-                aws.config.timeouts.command,
+                aws.config.timeouts,
             );
             let files = Files::new();
             let refs_ref = &refs;
             let repo_ref = &repo;
             aws.dynamodb
                 .locked(&refs.lock_ref, deadline, move |lock| async move {
-                    refs_ref.sync(aws, files, repo_ref, &lock).await
+                    refs_ref.sync(aws, files, repo_ref, &lock, deadline).await
                 })
                 .await?;
         }
