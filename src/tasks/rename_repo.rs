@@ -1,7 +1,7 @@
 use crate::{
     archive::Archive,
     aws::Aws,
-    dto::sqs_event::SqsRepoDetail,
+    dto::sqs_event::{GitProvider, SqsRepoDetail},
     error::ACResult,
     files::Files,
     git_repo::GitRepo,
@@ -10,13 +10,18 @@ use crate::{
 use async_trait::async_trait;
 
 pub struct RenameRepoTask {
+    provider: GitProvider,
     ids: SqsRepoDetail,
     names: SqsRepoDetail,
 }
 
 impl RenameRepoTask {
-    pub fn new(ids: SqsRepoDetail, names: SqsRepoDetail) -> Self {
-        Self { ids, names }
+    pub fn new(provider: GitProvider, ids: SqsRepoDetail, names: SqsRepoDetail) -> Self {
+        Self {
+            provider,
+            ids,
+            names,
+        }
     }
 }
 
@@ -24,7 +29,7 @@ impl RenameRepoTask {
 impl TaskTrait for RenameRepoTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
         let refs = RepoRefs::new(&aws.config, &self.ids)?;
-        let repo = GitRepo::new(&self.names.account, &self.names.repo, None);
+        let repo = GitRepo::new(&self.provider, &self.names.account, &self.names.repo, None);
         aws.dynamodb
             .locked(&refs.lock_ref, || async {
                 let files = Files::new();

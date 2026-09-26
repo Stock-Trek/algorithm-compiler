@@ -35,18 +35,18 @@ impl TaskTrait for Task {
 
 impl From<SqsMessage> for Task {
     fn from(value: SqsMessage) -> Self {
-        let SqsMessage { detail, .. } = value;
+        let SqsMessage { provider, detail } = value;
         match detail {
-            SqsDetail::AddRepos { ids } => Self::AddRepos(AddReposTask::new(ids)),
+            SqsDetail::AddRepos { ids } => Self::AddRepos(AddReposTask::new(provider, ids)),
             SqsDetail::Commit {
                 ids,
                 branch_name,
                 commit_hash,
                 ..
-            } => Self::Commit(CommitTask::new(ids, branch_name, commit_hash)),
+            } => Self::Commit(CommitTask::new(provider, ids, branch_name, commit_hash)),
             SqsDetail::RemoveRepos { ids } => Self::RemoveRepos(RemoveReposTask::new(ids)),
             SqsDetail::RenameRepo { ids, new_names } => {
-                Self::RenameRepo(RenameRepoTask::new(ids, new_names))
+                Self::RenameRepo(RenameRepoTask::new(provider, ids, new_names))
             }
         }
     }
