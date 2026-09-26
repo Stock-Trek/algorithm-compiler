@@ -1,7 +1,4 @@
-use crate::{
-    dto::sqs_event::GitProvider, error::ACResult, files::Files, program::Program,
-    timeouts::Timeouts,
-};
+use crate::{error::ACResult, files::Files, program::Program, timeouts::Timeouts};
 use std::{path::Path, time::SystemTime};
 
 #[derive(Debug, Clone)]
@@ -18,15 +15,9 @@ pub struct GitCommit {
 }
 
 impl GitRepo {
-    pub fn new(
-        provider: &GitProvider,
-        account: &str,
-        repo: &str,
-        commit: Option<(&str, &str)>,
-        timeouts: Timeouts,
-    ) -> Self {
+    pub fn new(clone_url: &str, commit: Option<(&str, &str)>, timeouts: Timeouts) -> Self {
         Self {
-            clone_url: provider.clone_url(account, repo),
+            clone_url: clone_url.into(),
             commit: commit.map(|(branch_name, commit_hash)| GitCommit {
                 ref_name: format!("refs/stock-trek/{branch_name}-{commit_hash}"),
                 commit_hash: commit_hash.to_string(),

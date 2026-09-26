@@ -45,35 +45,51 @@ pub enum GitProvider {
     GitHub,
 }
 
-impl GitProvider {
-    pub fn clone_url(&self, account: &str, repo: &str) -> String {
-        match self {
-            Self::GitHub => format!("https://github.com/{account}/{repo}.git"),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SqsDetail {
-    RenameRepo {
-        ids: SqsRepoDetail,
-        new_names: SqsRepoDetail,
-    },
     AddRepos {
-        ids: Vec<SqsRepoDetail>,
+        ids: Vec<SqsRepoId>,
     },
     RemoveRepos {
-        ids: Vec<SqsRepoDetail>,
+        ids: Vec<SqsRepoId>,
+    },
+    RenameRepo {
+        id: SqsRepoId,
+        name: SqsRepoName,
+    },
+    AddRef {
+        id: SqsRepoId,
+        ref_name: String,
+        ref_type: SqsRefType,
+    },
+    DeleteRef {
+        id: SqsRepoId,
+        ref_name: String,
+        ref_type: SqsRefType,
     },
     Commit {
-        ids: SqsRepoDetail,
+        id: SqsRepoId,
         branch_name: String,
         commit_hash: String,
+        forced: bool,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct SqsRepoDetail {
+pub struct SqsRepoId {
+    pub account_id: String,
+    pub repo_id: String,
+    pub clone_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SqsRepoName {
     pub account: String,
     pub repo: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SqsRefType {
+    Branch,
+    Tag,
 }

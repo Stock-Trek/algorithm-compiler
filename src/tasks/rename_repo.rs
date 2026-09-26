@@ -1,7 +1,7 @@
 use crate::{
     archive::Archive,
     aws::Aws,
-    dto::sqs_event::{GitProvider, SqsRepoDetail},
+    dto::sqs_event::{SqsRepoId, SqsRepoName},
     error::ACResult,
     files::Files,
     git_repo::GitRepo,
@@ -12,32 +12,21 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 
 pub struct RenameRepoTask {
-    provider: GitProvider,
-    ids: SqsRepoDetail,
-    names: SqsRepoDetail,
+    id: SqsRepoId,
+    name: SqsRepoName,
 }
 
 impl RenameRepoTask {
-    pub fn new(provider: GitProvider, ids: SqsRepoDetail, names: SqsRepoDetail) -> Self {
-        Self {
-            provider,
-            ids,
-            names,
-        }
+    pub fn new(id: SqsRepoId, name: SqsRepoName) -> Self {
+        Self { id, name }
     }
 }
 
 #[async_trait]
 impl TaskTrait for RenameRepoTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let refs = RepoRefs::new(&aws.config, &self.ids)?;
-        let repo = GitRepo::new(
-            &self.provider,
-            &self.names.account,
-            &self.names.repo,
-            None,
-            aws.config.timeouts,
-        );
+        let refs = RepoRefs::new(&aws.config, &self.id)?;
+        let repo = GitRepo::new(&self.id.clone_url, None, aws.config.timeouts);
         let refs_ref = &refs;
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {

@@ -4,7 +4,7 @@ use crate::{
     constants::{S3_COMPILE_OUTPUT_FILE, S3_COMPILE_RESULT_FILE},
     dto::{
         compile_result::{CompileResult, CompileStatus},
-        sqs_event::{GitProvider, SqsRepoDetail},
+        sqs_event::SqsRepoId,
     },
     error::{ACError, ACResult},
     fenced::FencedS3,
@@ -17,22 +17,15 @@ use async_trait::async_trait;
 use std::{path::Path, time::SystemTime};
 
 pub struct CommitTask {
-    provider: GitProvider,
-    ids: SqsRepoDetail,
+    id: SqsRepoId,
     branch_name: String,
     commit_hash: String,
 }
 
 impl CommitTask {
-    pub fn new(
-        provider: GitProvider,
-        ids: SqsRepoDetail,
-        branch_name: String,
-        commit_hash: String,
-    ) -> Self {
+    pub fn new(id: SqsRepoId, branch_name: String, commit_hash: String) -> Self {
         Self {
-            provider,
-            ids,
+            id,
             branch_name,
             commit_hash,
         }
@@ -41,8 +34,8 @@ impl CommitTask {
     fn prefix(&self) -> ACResult<String> {
         Ok(format!(
             "{}/{}/{}",
-            Files::sanitize_path(&self.ids.account)?,
-            Files::sanitize_path(&self.ids.repo)?,
+            Files::sanitize_path(&self.id.account_id)?,
+            Files::sanitize_path(&self.id.repo_id)?,
             Files::sanitize_path(&self.commit_hash)?
         ))
     }
@@ -130,11 +123,9 @@ impl CommitTask {
 #[async_trait]
 impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let refs = RepoRefs::new(&aws.config, &self.ids)?;
+        let refs = RepoRefs::new(&aws.config, &self.id)?;
         let repo = GitRepo::new(
-            &self.provider,
-            &self.ids.account,
-            &self.ids.repo,
+            &self.id.clone_url,
             Some((&self.branch_name, &self.commit_hash)),
             aws.config.timeouts,
         );
