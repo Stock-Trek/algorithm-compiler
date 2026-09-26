@@ -102,6 +102,7 @@ impl Files {
     }
 
     pub async fn copy_algorithms(&self, revision: &str) -> ACResult<()> {
+        let revision = Self::sanitize_path(revision)?;
         fs::create_dir_all(&self.algorithms).map_err(ACError::FileSystem)?;
         let git_dir = Self::path_str(&self.repo)?;
         let algorithms = Self::path_str(&self.algorithms)?;
@@ -110,6 +111,7 @@ impl Files {
             &format!("--git-dir={git_dir}"),
             "archive",
             "--format=tar",
+            "--",
             &format!("{revision}:{ALGORITHMS_FOLDER}"),
         ]);
         let mut tar = Command::new("tar");

@@ -136,7 +136,7 @@ impl TaskTrait for CommitTask {
             &self.ids.account,
             &self.ids.repo,
             Some((&self.branch_name, &self.commit_hash)),
-        );
+        )?;
         let files = Files::new();
         let refs_ref = &refs;
         aws.dynamodb

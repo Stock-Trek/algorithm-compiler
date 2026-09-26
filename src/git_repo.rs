@@ -19,14 +19,22 @@ impl GitRepo {
         account: &str,
         repo: &str,
         commit: Option<(&str, &str)>,
-    ) -> Self {
-        Self {
-            clone_url: provider.clone_url(account, repo),
-            commit: commit.map(|(branch_name, commit_hash)| GitCommit {
-                ref_name: format!("refs/stock-trek/{branch_name}-{commit_hash}"),
-                commit_hash: commit_hash.to_string(),
-            }),
-        }
+    ) -> ACResult<Self> {
+        let commit = match commit {
+            Some((branch_name, commit_hash)) => {
+                let branch_name = Files::sanitize_path(branch_name)?;
+                let commit_hash = Files::sanitize_path(commit_hash)?;
+                Some(GitCommit {
+                    ref_name: format!("refs/stock-trek/{branch_name}-{commit_hash}"),
+                    commit_hash,
+                })
+            }
+            None => None,
+        };
+        Ok(Self {
+            clone_url: provider.clone_url(account, repo)?,
+            commit,
+        })
     }
 
     pub async fn clone_bare(&self, path: &Path) -> ACResult<String> {
@@ -48,8 +56,11 @@ impl GitRepo {
     pub async fn create_ref(&self, path: &Path) -> ACResult<String> {
         match &self.commit {
             Some(commit) => {
-                self.exec_git(path, &["update-ref", &commit.ref_name, &commit.commit_hash])
-                    .await
+                self.exec_git(
+                    path,
+                    &["update-ref", "--", &commit.ref_name, &commit.commit_hash],
+                )
+                .await
             }
             None => Ok(String::new()),
         }

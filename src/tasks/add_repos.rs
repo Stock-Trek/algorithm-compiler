@@ -25,7 +25,7 @@ impl TaskTrait for AddReposTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         for detail in &self.ids {
             let refs = RepoRefs::new(&aws.config, detail)?;
-            let repo = GitRepo::new(&self.provider, &detail.account, &detail.repo, None);
+            let repo = GitRepo::new(&self.provider, &detail.account, &detail.repo, None)?;
             let files = Files::new();
             let refs_ref = &refs;
             let repo_ref = &repo;

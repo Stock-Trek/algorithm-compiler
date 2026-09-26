@@ -1,3 +1,4 @@
+use crate::{error::ACResult, files::Files};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
@@ -46,10 +47,12 @@ pub enum GitProvider {
 }
 
 impl GitProvider {
-    pub fn clone_url(&self, account: &str, repo: &str) -> String {
-        match self {
+    pub fn clone_url(&self, account: &str, repo: &str) -> ACResult<String> {
+        let account = Files::sanitize_path(account)?;
+        let repo = Files::sanitize_path(repo)?;
+        Ok(match self {
             Self::GitHub => format!("https://github.com/{account}/{repo}.git"),
-        }
+        })
     }
 }
 
