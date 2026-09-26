@@ -27,7 +27,7 @@ impl RepoRefs {
                 key_value: format!("{account}/{repo}"),
             },
             repo_ref: S3ObjectRef {
-                bucket: config.s3_bucket_uploads.clone(),
+                bucket: config.s3_bucket_commit_artifacts.clone(),
                 key: format!("{account}/{repo}/{S3_REPOS_PREFIX}/{repo}.tar.gz"),
             },
         }

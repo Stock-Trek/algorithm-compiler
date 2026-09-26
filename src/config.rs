@@ -7,14 +7,14 @@ const S3_BUCKET_COMMIT_ARTIFACTS_ENV: &str = "S3_BUCKET_COMMIT_ARTIFACTS";
 #[derive(Debug, Clone)]
 pub struct Config {
     pub dynamodb_lock_table: String,
-    pub s3_bucket_uploads: String,
+    pub s3_bucket_commit_artifacts: String,
 }
 
 impl Config {
     pub fn from_env() -> ACResult<Self> {
         Ok(Self {
             dynamodb_lock_table: required(DYNAMODB_LOCK_TABLE_ENV)?,
-            s3_bucket_uploads: required(S3_BUCKET_COMMIT_ARTIFACTS_ENV)?,
+            s3_bucket_commit_artifacts: required(S3_BUCKET_COMMIT_ARTIFACTS_ENV)?,
         })
     }
 }

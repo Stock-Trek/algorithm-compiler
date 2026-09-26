@@ -63,7 +63,7 @@ impl CommitTask {
         aws.s3
             .upload_bytes(
                 &S3ObjectRef {
-                    bucket: aws.config.s3_bucket_uploads.clone(),
+                    bucket: aws.config.s3_bucket_commit_artifacts.clone(),
                     key: format!("{}/{S3_COMPILE_RESULT_FILE}", self.prefix()),
                 },
                 body,
@@ -88,7 +88,7 @@ impl CommitTask {
         aws.s3
             .upload(
                 &S3ObjectRef {
-                    bucket: aws.config.s3_bucket_uploads.clone(),
+                    bucket: aws.config.s3_bucket_commit_artifacts.clone(),
                     key: key.into(),
                 },
                 path,
