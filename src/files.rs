@@ -141,7 +141,7 @@ impl Files {
         info!("compile");
         let compile_result = self.build_wasm(timeouts, deadline).await?;
         info!("Build result {:?}", compile_result);
-        if !compile_result.succeeded() {
+        if compile_result.result != CompileStatus::Success {
             return Ok(compile_result);
         }
         self.compile_cwasm(timeouts, deadline).await?;

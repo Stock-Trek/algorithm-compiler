@@ -29,9 +29,3 @@ pub struct CodeLocation {
     pub line: i64,
     pub column: i64,
 }
-
-impl CompileResult {
-    pub fn succeeded(&self) -> bool {
-        self.result == CompileStatus::Success
-    }
-}
