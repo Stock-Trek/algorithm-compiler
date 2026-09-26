@@ -10,21 +10,21 @@ use crate::{
 use async_trait::async_trait;
 
 pub struct RenameTask {
-    from: SqsRepoDetail,
-    to: SqsRepoDetail,
+    ids: SqsRepoDetail,
+    names: SqsRepoDetail,
 }
 
 impl RenameTask {
-    pub fn new(from: SqsRepoDetail, to: SqsRepoDetail) -> Self {
-        Self { from, to }
+    pub fn new(ids: SqsRepoDetail, names: SqsRepoDetail) -> Self {
+        Self { ids, names }
     }
 }
 
 #[async_trait]
 impl TaskTrait for RenameTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
-        let refs = RepoRefs::new(&self.from);
-        let repo = GitRepo::new(&self.to.account, &self.to.repo, None, None);
+        let refs = RepoRefs::new(&self.ids);
+        let repo = GitRepo::new(&self.names.account, &self.names.repo, None, None);
         aws.dynamodb
             .locked(&refs.lock_ref, || async {
                 let files = Files::new();
