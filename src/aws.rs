@@ -3,7 +3,6 @@ use crate::{
     dynamodb::{DynamoDb, DynamoDbDatumRef, DynamoDbLock},
     fenced::FencedS3,
     s3::S3,
-    timeouts::Timeouts,
 };
 use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::Client as DynamoDbClient;
@@ -18,9 +17,10 @@ pub struct Aws {
 impl Aws {
     pub async fn new(config: Config) -> Self {
         let timeout_config = TimeoutConfig::builder()
-            .connect_timeout(Timeouts::aws_connect())
-            .operation_timeout(Timeouts::aws_operation())
+            .connect_timeout(config.timeouts.aws_connect)
+            .operation_timeout(config.timeouts.aws_operation)
             .build();
+        let operation_timeout = config.timeouts.aws_operation;
         let sdk_config = aws_config::defaults(BehaviorVersion::latest())
             .timeout_config(timeout_config)
             .load()
@@ -32,6 +32,7 @@ impl Aws {
             },
             s3: S3 {
                 client: S3Client::new(&sdk_config),
+                operation_timeout,
             },
         }
     }

@@ -1,10 +1,12 @@
 use crate::{dto::sqs_event::GitProvider, error::ACResult, files::Files, program::Program};
 use std::path::Path;
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct GitRepo {
     pub clone_url: String,
     pub commit: Option<GitCommit>,
+    command_timeout: Duration,
 }
 
 #[derive(Debug, Clone)]
@@ -19,6 +21,7 @@ impl GitRepo {
         account: &str,
         repo: &str,
         commit: Option<(&str, &str)>,
+        command_timeout: Duration,
     ) -> Self {
         Self {
             clone_url: provider.clone_url(account, repo),
@@ -26,6 +29,7 @@ impl GitRepo {
                 ref_name: format!("refs/stock-trek/{branch_name}-{commit_hash}"),
                 commit_hash: commit_hash.to_string(),
             }),
+            command_timeout,
         }
     }
 
@@ -56,6 +60,6 @@ impl GitRepo {
     }
 
     async fn exec_git(&self, path: &Path, args: &[&str]) -> ACResult<String> {
-        Program::run("git", args, path).await
+        Program::run_with_timeout("git", args, path, self.command_timeout).await
     }
 }
