@@ -151,7 +151,7 @@ impl Files {
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
         self.save_compile_output(&stdout, &stderr)?;
-        let compile_output = CompileOutput::from_stdout(stdout)?;
+        let compile_output = CompileOutput::from_stdout(stdout);
         let error_count = compile_output.errors.len();
         if !compile_output.success && error_count == 0 {
             return Err(ACError::InternalServer(
@@ -218,7 +218,7 @@ impl Files {
 }
 
 impl CompileOutput {
-    fn from_stdout(stdout: String) -> ACResult<Self> {
+    fn from_stdout(stdout: String) -> Self {
         info!("Get compile output from stdout");
         let mut success = false;
         let mut errors = Vec::new();
@@ -228,10 +228,10 @@ impl CompileOutput {
             if cleaned_line.is_empty() {
                 continue;
             }
-            let values =
-                serde_json::from_str::<HashMap<String, Value>>(cleaned_line).map_err(|error| {
-                    ACError::InternalServer(format!("Failed to parse compile output: {error}"))
-                })?;
+            let Ok(values) = serde_json::from_str::<HashMap<String, Value>>(cleaned_line) else {
+                warn!("Ignoring non-JSON line in compile output: {cleaned_line}");
+                continue;
+            };
             let Some(reason) = values.get("reason").and_then(|value| value.as_str()) else {
                 continue;
             };
@@ -251,11 +251,11 @@ impl CompileOutput {
                 _ => {}
             }
         }
-        Ok(Self {
+        Self {
             success,
             errors,
             compile_messages,
-        })
+        }
     }
 }
 
