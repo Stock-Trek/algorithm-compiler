@@ -12,6 +12,7 @@ pub struct CompileResult {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompileMessage {
+    pub file: String,
     pub level: String,
     pub start: CodeLocation,
     pub end: CodeLocation,
