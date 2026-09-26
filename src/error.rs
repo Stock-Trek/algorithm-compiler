@@ -26,6 +26,8 @@ pub enum ACError {
     FileSystem(std::io::Error),
     #[error("InternalServer: {0}")]
     InternalServer(String),
+    #[error("InvalidMessage: {0}")]
+    InvalidMessage(String),
     #[error("S3DeleteObjects: {0}")]
     S3DeleteObjects(Box<DeleteObjectsError>),
     #[error("S3ListObjects: {0}")]

@@ -1,6 +1,7 @@
 use crate::{
     aws::Aws,
-    dto::sqs_event::{SqsEvent, SqsMessage},
+    dto::sqs_event::{SqsEvent, SqsEventResponse, SqsMessage},
+    error::{ACError, ACResult},
     tasks::task::{Task, TaskTrait},
 };
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
@@ -43,13 +44,27 @@ impl Handler {
         Self { aws: Arc::new(aws) }
     }
 
-    async fn handle(&self, event: LambdaEvent<SqsEvent>) -> Result<(), Error> {
+    async fn process_record(&self, body: &str) -> ACResult<()> {
+        let message: SqsMessage = serde_json::from_str(body).map_err(|error| {
+            ACError::InvalidMessage(format!("Failed to deserialize SQS message: {error}"))
+        })?;
+        let task: Task = message.into();
+        task.handle(&self.aws).await
+    }
+
+    async fn handle(&self, event: LambdaEvent<SqsEvent>) -> Result<SqsEventResponse, Error> {
+        let mut response = SqsEventResponse::default();
         for record in event.payload.records {
-            let message: SqsMessage = serde_json::from_str(&record.body)?;
-            let task: Task = message.into();
-            task.handle(&self.aws).await?;
+            if let Err(error) = self.process_record(&record.body).await {
+                tracing::error!(
+                    message_id = %record.message_id,
+                    %error,
+                    "Failed to process SQS message, reporting batch item failure",
+                );
+                response.add_failure(record.message_id);
+            }
         }
-        Ok(())
+        Ok(response)
     }
 }
 
