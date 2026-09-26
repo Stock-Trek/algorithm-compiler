@@ -2,6 +2,7 @@ use crate::{
     dto::compile_result::{CodeLocation, CompileMessage, CompileResult, CompileStatus},
     error::{ACError, ACResult},
     program::Program,
+    timeouts::Timeouts,
 };
 use serde_json::Value;
 use std::{
@@ -9,7 +10,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::LazyLock,
-    time::Duration,
+    time::SystemTime,
 };
 use tokio::process::Command;
 use tracing::{info, warn};
@@ -109,7 +110,12 @@ impl Files {
         }
     }
 
-    pub async fn copy_algorithms(&self, revision: &str, command_timeout: Duration) -> ACResult<()> {
+    pub async fn copy_algorithms(
+        &self,
+        revision: &str,
+        timeouts: &Timeouts,
+        deadline: SystemTime,
+    ) -> ACResult<()> {
         fs::create_dir_all(&self.algorithms).map_err(ACError::FileSystem)?;
         let git_dir = Self::path_str(&self.repo)?;
         let algorithms = Self::path_str(&self.algorithms)?;
@@ -123,18 +129,22 @@ impl Files {
         let mut tar = Command::new("tar");
         tar.args(["-x", "-C", algorithms]);
         let mut commands = [git, tar];
-        Program::pipe_with_timeout(&mut commands, command_timeout).await?;
+        Program::pipe_with_timeout(&mut commands, timeouts.command_for(deadline)?).await?;
         Ok(())
     }
 
-    pub async fn compile(&self, command_timeout: Duration) -> ACResult<CompileResult> {
+    pub async fn compile(
+        &self,
+        timeouts: &Timeouts,
+        deadline: SystemTime,
+    ) -> ACResult<CompileResult> {
         info!("compile");
-        let compile_result = self.build_wasm(command_timeout).await?;
+        let compile_result = self.build_wasm(timeouts, deadline).await?;
         info!("Build result {:?}", compile_result);
         if compile_result.failed() {
             return Ok(compile_result);
         }
-        self.compile_cwasm(command_timeout).await?;
+        self.compile_cwasm(timeouts, deadline).await?;
         Ok(compile_result)
     }
 
@@ -172,7 +182,11 @@ impl Files {
             .ok_or_else(|| ACError::InternalServer(format!("Path {:?} is not valid utf-8", path)))
     }
 
-    async fn build_wasm(&self, command_timeout: Duration) -> ACResult<CompileResult> {
+    async fn build_wasm(
+        &self,
+        timeouts: &Timeouts,
+        deadline: SystemTime,
+    ) -> ACResult<CompileResult> {
         info!("Building wasm");
         let _ = fs::remove_file(self.build.join(BUILT_WASM));
         let output = Program::output_with_clean_env(
@@ -186,7 +200,7 @@ impl Files {
                 "--quiet",
             ],
             &self.build,
-            command_timeout,
+            timeouts.command_for(deadline)?,
         )
         .await?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -224,14 +238,14 @@ impl Files {
         fs::write(self.compile_output_file(), raw).map_err(ACError::FileSystem)
     }
 
-    async fn compile_cwasm(&self, command_timeout: Duration) -> ACResult<()> {
+    async fn compile_cwasm(&self, timeouts: &Timeouts, deadline: SystemTime) -> ACResult<()> {
         info!("Compiling cwasm");
         let _ = fs::remove_file(self.build.join(BUILT_CWASM));
         Program::run_with_clean_env(
             "wasmtime",
             &["compile", "-C", "cache=no", BUILT_WASM, "-o", BUILT_CWASM],
             &self.build,
-            command_timeout,
+            timeouts.command_for(deadline)?,
         )
         .await?;
         Ok(())

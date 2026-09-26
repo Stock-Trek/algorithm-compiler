@@ -1,5 +1,5 @@
 use crate::error::{ACError, ACResult};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 const COMMAND_TIMEOUT_ENV: &str = "COMMAND_TIMEOUT_SECONDS";
 const AWS_CONNECT_TIMEOUT_ENV: &str = "AWS_CONNECT_TIMEOUT_SECONDS";
@@ -8,6 +8,7 @@ const AWS_OPERATION_TIMEOUT_ENV: &str = "AWS_OPERATION_TIMEOUT_SECONDS";
 const DEFAULT_COMMAND_TIMEOUT: Duration = Duration::from_secs(600);
 const DEFAULT_AWS_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const DEFAULT_AWS_OPERATION_TIMEOUT: Duration = Duration::from_secs(120);
+const COMMAND_DEADLINE_BUFFER: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Copy)]
 pub struct Timeouts {
@@ -26,6 +27,19 @@ impl Timeouts {
                 DEFAULT_AWS_OPERATION_TIMEOUT,
             )?,
         })
+    }
+
+    pub fn command_for(&self, deadline: SystemTime) -> ACResult<Duration> {
+        let remaining = deadline
+            .duration_since(SystemTime::now())
+            .unwrap_or_default()
+            .saturating_sub(COMMAND_DEADLINE_BUFFER);
+        if remaining.is_zero() {
+            return Err(ACError::Timeout(
+                "Lambda deadline reached before command could start".into(),
+            ));
+        }
+        Ok(self.command.min(remaining))
     }
 
     fn duration(key: &str, default: Duration) -> ACResult<Duration> {

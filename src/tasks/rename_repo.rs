@@ -36,7 +36,7 @@ impl TaskTrait for RenameRepoTask {
             &self.names.account,
             &self.names.repo,
             None,
-            aws.config.timeouts.command,
+            aws.config.timeouts,
         );
         let refs_ref = &refs;
         aws.dynamodb
@@ -49,7 +49,7 @@ impl TaskTrait for RenameRepoTask {
                     return Ok(());
                 }
                 Archive::extract(&files.archive, &files.repo)?;
-                repo.set_remote(&files.repo).await?;
+                repo.set_remote(&files.repo, deadline).await?;
                 Archive::create(&files.repo, &files.archive)?;
                 aws.fenced_s3(&refs_ref.lock_ref, &lock)
                     .upload(&refs_ref.repo_ref, &files.archive)
