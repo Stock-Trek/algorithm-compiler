@@ -96,7 +96,7 @@ impl TaskTrait for CommitTask {
         );
         let files = Files::new();
         aws.dynamodb
-            .locked(&refs.lock_ref, refs.sync(aws, &files, &repo))
+            .locked(&refs.lock_ref, || refs.sync(aws, &files, &repo))
             .await?;
         files.copy_algorithms(&self.commit_hash)?;
         let compile_result = files.compile()?;

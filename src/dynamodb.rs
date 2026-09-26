@@ -86,13 +86,14 @@ impl DynamoDb {
         Ok(())
     }
 
-    pub async fn locked<F, T>(&self, lock_ref: &DynamoDbDatumRef, action: F) -> ACResult<T>
+    pub async fn locked<F, Fut, T>(&self, lock_ref: &DynamoDbDatumRef, action: F) -> ACResult<T>
     where
-        F: Future<Output = ACResult<T>> + Send,
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = ACResult<T>> + Send,
         T: Send,
     {
         let lock = self.acquire_lock(lock_ref).await?;
-        let result = action.await;
+        let result = action().await;
         let release = self.release_lock(lock_ref, &lock).await;
         match result {
             Ok(value) => release.map(|_| value),
