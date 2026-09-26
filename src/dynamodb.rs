@@ -1,5 +1,8 @@
 use crate::error::{ACError, ACResult};
-use aws_sdk_dynamodb::{Client as DynamoDbClient, types::AttributeValue};
+use aws_sdk_dynamodb::{
+    Client as DynamoDbClient, error::SdkError, operation::put_item::PutItemError,
+    types::AttributeValue,
+};
 use std::{
     future::Future,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -73,36 +76,37 @@ impl DynamoDb {
                 .expression_attribute_values(":now", AttributeValue::N(epoch_seconds().to_string()))
                 .send()
                 .await;
-            match result {
-                Ok(_) => {
-                    return Ok(DynamoDbLock { token });
-                }
-                Err(error) => {
-                    let conditional = error
-                        .as_service_error()
-                        .map(|e| e.is_conditional_check_failed_exception())
-                        .unwrap_or(false);
-                    if conditional {
-                        let remaining = wait_until
-                            .duration_since(SystemTime::now())
-                            .unwrap_or_default();
-                        if remaining.is_zero() {
-                            return Err(lock_timeout(datum_ref));
-                        }
-                        warn!("Lock for {:?} is held, retrying", datum_ref);
-                        tokio::time::sleep(remaining.min(LOCK_RETRY_DELAY)).await;
-                    } else if error.as_service_error().is_some() {
-                        return Err(ACError::DynamoDbPutItem(Box::new(
-                            error.into_service_error(),
-                        )));
-                    } else {
-                        return Err(ACError::InternalServer(format!(
-                            "Failed to acquire lock for {:?}: {error}",
-                            datum_ref
-                        )));
-                    }
-                }
+            let error = match result {
+                Ok(_) => return Ok(DynamoDbLock { token }),
+                Err(error) => error,
+            };
+            let conditional = error
+                .as_service_error()
+                .map(|e| e.is_conditional_check_failed_exception())
+                .unwrap_or(false);
+            if !conditional && !is_transient_put_item_error(&error) {
+                return Err(put_item_error(datum_ref, error));
             }
+            let remaining = wait_until
+                .duration_since(SystemTime::now())
+                .unwrap_or_default();
+            if remaining.is_zero() {
+                return if conditional {
+                    Err(lock_timeout(datum_ref))
+                } else {
+                    Err(put_item_error(datum_ref, error))
+                };
+            }
+            if conditional {
+                warn!("Lock for {:?} is held, retrying", datum_ref);
+            } else {
+                warn!(
+                    %error,
+                    "Transient error acquiring lock for {:?}, retrying",
+                    datum_ref,
+                );
+            }
+            tokio::time::sleep(remaining.min(LOCK_RETRY_DELAY)).await;
         }
     }
 
@@ -239,6 +243,34 @@ impl DynamoDb {
                 }
             }
         })
+    }
+}
+
+fn is_transient_put_item_error(error: &SdkError<PutItemError>) -> bool {
+    match error {
+        SdkError::TimeoutError(_) | SdkError::ResponseError(_) => true,
+        SdkError::DispatchFailure(failure) => failure.is_timeout() || failure.is_io(),
+        _ => error
+            .as_service_error()
+            .map(|error| {
+                error.is_internal_server_error()
+                    || error.is_provisioned_throughput_exceeded_exception()
+                    || error.is_replicated_write_conflict_exception()
+                    || error.is_request_limit_exceeded()
+                    || error.is_throttling_exception()
+            })
+            .unwrap_or(false),
+    }
+}
+
+fn put_item_error(datum_ref: &DynamoDbDatumRef, error: SdkError<PutItemError>) -> ACError {
+    if error.as_service_error().is_some() {
+        ACError::DynamoDbPutItem(Box::new(error.into_service_error()))
+    } else {
+        ACError::InternalServer(format!(
+            "Failed to acquire lock for {:?}: {error}",
+            datum_ref
+        ))
     }
 }
 
