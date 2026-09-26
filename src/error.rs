@@ -1,7 +1,7 @@
 use aws_sdk_dynamodb::operation::{delete_item::DeleteItemError, put_item::PutItemError};
 use aws_sdk_s3::operation::{
-    delete_objects::DeleteObjectsError, list_objects_v2::ListObjectsV2Error,
-    put_object::PutObjectError,
+    delete_objects::DeleteObjectsError, get_object::GetObjectError,
+    list_objects_v2::ListObjectsV2Error, put_object::PutObjectError,
 };
 use aws_smithy_types::byte_stream;
 use std::fmt::Debug;
@@ -28,6 +28,8 @@ pub enum ACError {
     InternalServer(String),
     #[error("S3DeleteObjects: {0}")]
     S3DeleteObjects(Box<DeleteObjectsError>),
+    #[error("S3GetObject: {0}")]
+    S3GetObject(Box<GetObjectError>),
     #[error("S3ListObjects: {0}")]
     S3ListObjects(Box<ListObjectsV2Error>),
     #[error("S3PutObject: {0}")]
