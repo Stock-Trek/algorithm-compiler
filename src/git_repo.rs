@@ -1,4 +1,6 @@
-use crate::{error::ACResult, files::Files, program::Program, timeouts::Timeouts};
+use crate::{
+    dto::sqs_event::SqsRefType, error::ACResult, files::Files, program::Program, timeouts::Timeouts,
+};
 use std::{path::Path, time::SystemTime};
 
 #[derive(Debug, Clone)]
@@ -62,6 +64,39 @@ impl GitRepo {
             }
             None => Ok(String::new()),
         }
+    }
+
+    pub async fn add_ref(
+        &self,
+        path: &Path,
+        ref_name: &str,
+        ref_type: SqsRefType,
+        deadline: SystemTime,
+    ) -> ACResult<String> {
+        let full_name = Self::full_ref_name(ref_name, ref_type);
+        let refspec = format!("+{full_name}:{full_name}");
+        self.exec_git(path, &["fetch", "origin", &refspec], deadline)
+            .await
+    }
+
+    pub async fn delete_ref(
+        &self,
+        path: &Path,
+        ref_name: &str,
+        ref_type: SqsRefType,
+        deadline: SystemTime,
+    ) -> ACResult<String> {
+        let full_name = Self::full_ref_name(ref_name, ref_type);
+        self.exec_git(path, &["update-ref", "-d", "--", &full_name], deadline)
+            .await
+    }
+
+    fn full_ref_name(ref_name: &str, ref_type: SqsRefType) -> String {
+        let prefix = match ref_type {
+            SqsRefType::Branch => "refs/heads",
+            SqsRefType::Tag => "refs/tags",
+        };
+        format!("{prefix}/{ref_name}")
     }
 
     async fn exec_git(&self, path: &Path, args: &[&str], deadline: SystemTime) -> ACResult<String> {
