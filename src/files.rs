@@ -66,11 +66,11 @@ impl Files {
         let target = self.build.join(TARGET_FOLDER);
         let cache = self.target_cache();
         if target.exists() {
-            let _ = fs::remove_dir_all(&cache);
+            Self::remove_dir_all_if_exists(&cache)?;
             fs::rename(&target, &cache).map_err(ACError::FileSystem)?;
         }
         let restore_target = cache.exists();
-        let _ = fs::remove_dir_all(&self.base);
+        Self::remove_dir_all_if_exists(&self.base)?;
         fs::create_dir_all(&self.repo).map_err(ACError::FileSystem)?;
         fs::create_dir_all(&self.build).map_err(ACError::FileSystem)?;
         if restore_target {
@@ -99,6 +99,14 @@ impl Files {
 
     fn target_cache(&self) -> PathBuf {
         PathBuf::from(format!("{BASE}-target"))
+    }
+
+    fn remove_dir_all_if_exists(path: &Path) -> ACResult<()> {
+        match fs::remove_dir_all(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(ACError::FileSystem(error)),
+        }
     }
 
     pub async fn copy_algorithms(&self, revision: &str, command_timeout: Duration) -> ACResult<()> {
