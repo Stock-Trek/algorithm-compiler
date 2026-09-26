@@ -32,7 +32,7 @@ const LEVEL_ERROR: &str = "error";
 const IGNORED_DIRECTORIES: [&str; 2] = [".git", "target"];
 
 struct CompileOutput {
-    success: bool,
+    success: Option<bool>,
     errors: Vec<String>,
     compile_messages: Vec<CompileMessage>,
 }
@@ -141,7 +141,7 @@ impl Files {
         info!("compile");
         let compile_result = self.build_wasm(timeouts, deadline).await?;
         info!("Build result {:?}", compile_result);
-        if compile_result.failed() {
+        if !compile_result.succeeded() {
             return Ok(compile_result);
         }
         self.compile_cwasm(timeouts, deadline).await?;
@@ -207,16 +207,30 @@ impl Files {
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
         let compile_output = CompileOutput::from_stdout(&stdout);
         let error_count = compile_output.errors.len();
-        if compile_output.success && error_count > 0 {
+        if compile_output.success == Some(true) && error_count > 0 {
             return Err(ACError::InternalServer(
                 "Build succeeded but detected compile errors".into(),
             ));
         }
-        if !compile_output.success {
+        if compile_output.success != Some(true) {
             self.save_compile_output(&Self::raw_compile_output(&stdout, &stderr))?;
+            let result = match compile_output.success {
+                Some(false) => CompileStatus::Failure,
+                _ => CompileStatus::Error,
+            };
+            let errors = if compile_output.errors.is_empty() {
+                stderr
+                    .lines()
+                    .map(str::trim)
+                    .filter(|line| !line.is_empty())
+                    .map(str::to_string)
+                    .collect()
+            } else {
+                compile_output.errors
+            };
             return Ok(CompileResult {
-                result: CompileStatus::Failure,
-                errors: compile_output.errors,
+                result,
+                errors,
                 compile_messages: compile_output.compile_messages,
             });
         }
@@ -275,7 +289,7 @@ impl Files {
 impl CompileOutput {
     fn from_stdout(stdout: &str) -> Self {
         info!("Get compile output from stdout");
-        let mut success = false;
+        let mut success = None;
         let mut errors = Vec::new();
         let mut compile_messages = Vec::new();
         for raw_line in stdout.lines() {
@@ -298,10 +312,12 @@ impl CompileOutput {
                     compile_messages.extend(CompileMessage::from_values(&values));
                 }
                 BUILD_FINISHED => {
-                    success = values
-                        .get("success")
-                        .and_then(|value| value.as_bool())
-                        .unwrap_or(false);
+                    success = Some(
+                        values
+                            .get("success")
+                            .and_then(|value| value.as_bool())
+                            .unwrap_or(false),
+                    );
                 }
                 _ => {}
             }

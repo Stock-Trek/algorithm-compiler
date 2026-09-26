@@ -151,7 +151,7 @@ impl TaskTrait for CommitTask {
                 let bucket = &aws.config.s3_bucket_commit_artifacts;
                 self.upload_compile_output(bucket, &s3, &compile_result)
                     .await?;
-                if compile_result.failed() {
+                if !compile_result.succeeded() {
                     self.upload_raw_compile_output(bucket, &s3, files).await?;
                     return Ok(());
                 }

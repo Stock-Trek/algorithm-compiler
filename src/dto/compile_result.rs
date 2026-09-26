@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub enum CompileStatus {
     Success,
     Failure,
+    Error,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -30,7 +31,7 @@ pub struct CodeLocation {
 }
 
 impl CompileResult {
-    pub fn failed(&self) -> bool {
-        self.result == CompileStatus::Failure
+    pub fn succeeded(&self) -> bool {
+        self.result == CompileStatus::Success
     }
 }
