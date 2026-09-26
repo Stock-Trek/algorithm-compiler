@@ -54,16 +54,10 @@ impl S3 {
             .await;
         match result {
             Ok(output) => {
-                let mut body = output.body.into_async_read();
-                let mut file = tokio::fs::File::create(sink_file_path)
-                    .await
-                    .map_err(ACError::FileSystem)?;
-                tokio::io::copy(&mut body, &mut file)
-                    .await
-                    .map_err(ACError::FileSystem)?;
-                tokio::io::AsyncWriteExt::flush(&mut file)
-                    .await
-                    .map_err(ACError::FileSystem)?;
+                if let Err(error) = Self::write_body(output.body, sink_file_path).await {
+                    let _ = tokio::fs::remove_file(sink_file_path).await;
+                    return Err(error);
+                }
                 Ok(true)
             }
             Err(error) => {
@@ -78,6 +72,20 @@ impl S3 {
                 }
             }
         }
+    }
+
+    async fn write_body(body: ByteStream, sink_file_path: &Path) -> ACResult<()> {
+        let mut body = body.into_async_read();
+        let mut file = tokio::fs::File::create(sink_file_path)
+            .await
+            .map_err(ACError::FileSystem)?;
+        tokio::io::copy(&mut body, &mut file)
+            .await
+            .map_err(ACError::FileSystem)?;
+        tokio::io::AsyncWriteExt::flush(&mut file)
+            .await
+            .map_err(ACError::FileSystem)?;
+        Ok(())
     }
 
     pub async fn delete_objects_with_prefix(&self, bucket: &str, prefix: &str) -> ACResult<()> {
