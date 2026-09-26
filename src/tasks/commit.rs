@@ -2,7 +2,10 @@ use crate::{
     archive::Archive,
     aws::Aws,
     constants::{S3_COMPILE_OUTPUT_FILE, S3_COMPILE_RESULT_FILE},
-    dto::{compile_result::CompileResult, sqs_event::SqsRepoDetail},
+    dto::{
+        compile_result::CompileResult,
+        sqs_event::{GitProvider, SqsRepoDetail},
+    },
     error::{ACError, ACResult},
     files::{ALGORITHMS_ARCHIVE_FILE, Files},
     git_repo::GitRepo,
@@ -13,14 +16,21 @@ use async_trait::async_trait;
 use std::path::Path;
 
 pub struct CommitTask {
+    provider: GitProvider,
     repo: SqsRepoDetail,
     branch_name: String,
     commit_hash: String,
 }
 
 impl CommitTask {
-    pub fn new(repo: SqsRepoDetail, branch_name: String, commit_hash: String) -> Self {
+    pub fn new(
+        provider: GitProvider,
+        repo: SqsRepoDetail,
+        branch_name: String,
+        commit_hash: String,
+    ) -> Self {
         Self {
+            provider,
             repo,
             branch_name,
             commit_hash,
@@ -99,6 +109,7 @@ impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
         let refs = RepoRefs::new(&aws.config, &self.repo)?;
         let repo = GitRepo::new(
+            &self.provider,
             &self.repo.account,
             &self.repo.repo,
             Some((&self.branch_name, &self.commit_hash)),

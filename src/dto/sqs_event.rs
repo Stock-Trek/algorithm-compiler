@@ -45,6 +45,14 @@ pub enum GitProvider {
     GitHub,
 }
 
+impl GitProvider {
+    pub fn clone_url(&self, account: &str, repo: &str) -> String {
+        match self {
+            Self::GitHub => format!("https://github.com/{account}/{repo}.git"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SqsDetail {
     RenameRepo {

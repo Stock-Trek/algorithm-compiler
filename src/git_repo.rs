@@ -1,4 +1,4 @@
-use crate::{error::ACResult, files::Files, program::Program};
+use crate::{dto::sqs_event::GitProvider, error::ACResult, files::Files, program::Program};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -14,9 +14,14 @@ pub struct GitCommit {
 }
 
 impl GitRepo {
-    pub fn new(account: &str, repo: &str, commit: Option<(&str, &str)>) -> Self {
+    pub fn new(
+        provider: &GitProvider,
+        account: &str,
+        repo: &str,
+        commit: Option<(&str, &str)>,
+    ) -> Self {
         Self {
-            clone_url: format!("https://github.com/{account}/{repo}.git"),
+            clone_url: provider.clone_url(account, repo),
             commit: commit.map(|(branch_name, commit_hash)| GitCommit {
                 ref_name: format!("refs/stock-trek/{branch_name}-{commit_hash}"),
                 commit_hash: commit_hash.to_string(),
