@@ -61,7 +61,6 @@ pub enum SqsDetail {
         ids: SqsRepoDetail,
         branch_name: String,
         commit_hash: String,
-        forced: bool,
     },
 }
 

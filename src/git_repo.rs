@@ -17,7 +17,9 @@ impl GitRepo {
     ) -> Self {
         Self {
             clone_url: format!("https://github.com/{account}/{repo}.git"),
-            ref_name: branch_name.map(|branch| format!("refs/stock-trek/{branch}")),
+            ref_name: branch_name
+                .zip(commit_hash)
+                .map(|(branch, hash)| format!("refs/stock-trek/{branch}-{hash}")),
             commit_hash: commit_hash.map(str::to_string),
         }
     }
