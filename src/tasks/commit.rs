@@ -117,16 +117,16 @@ impl TaskTrait for CommitTask {
         let files = Files::new();
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, || async {
-                refs.sync(aws, &files, &repo).await?;
+                refs.sync(aws, files, &repo).await?;
                 files.copy_algorithms(&self.commit_hash).await?;
                 let compile_result = files.compile().await;
-                self.upload_raw_compile_output(aws, &files).await?;
+                self.upload_raw_compile_output(aws, files).await?;
                 let compile_result = compile_result?;
                 self.upload_compile_output(aws, &compile_result).await?;
                 if compile_result.failed() {
                     return Ok(());
                 }
-                self.upload_artifacts(aws, &files).await
+                self.upload_artifacts(aws, files).await
             })
             .await
     }
