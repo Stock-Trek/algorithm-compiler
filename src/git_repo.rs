@@ -31,6 +31,10 @@ impl GitRepo {
         self.exec_git(path, &["fetch", "--prune", "--tags", "origin"])
     }
 
+    pub fn set_remote(&self, path: &Path) -> ACResult<String> {
+        self.exec_git(path, &["remote", "set-url", "origin", &self.clone_url])
+    }
+
     pub fn create_ref(&self, path: &Path) -> ACResult<String> {
         match (&self.ref_name, &self.commit_hash) {
             (Some(ref_name), Some(commit_hash)) => {
