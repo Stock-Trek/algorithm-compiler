@@ -9,6 +9,7 @@ use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
+    sync::LazyLock,
 };
 use tokio::process::Command;
 use tracing::{info, warn};
@@ -44,17 +45,20 @@ pub struct Files {
 }
 
 impl Files {
-    pub fn new() -> Self {
-        let base = PathBuf::from(BASE);
-        let build = base.join(BUILD_FOLDER);
-        Self {
-            archive: base.join(ARCHIVE_FILE),
-            repo: base.join(REPO_FOLDER),
-            algorithms: build.join(ALGORITHMS_FOLDER),
-            algorithms_archive: base.join(ALGORITHMS_ARCHIVE_FILE),
-            build,
-            base,
-        }
+    pub fn new() -> &'static Self {
+        static FILES: LazyLock<Files> = LazyLock::new(|| {
+            let base = PathBuf::from(BASE);
+            let build = base.join(BUILD_FOLDER);
+            Files {
+                archive: base.join(ARCHIVE_FILE),
+                repo: base.join(REPO_FOLDER),
+                algorithms: build.join(ALGORITHMS_FOLDER),
+                algorithms_archive: base.join(ALGORITHMS_ARCHIVE_FILE),
+                build,
+                base,
+            }
+        });
+        &FILES
     }
 
     pub fn clean(&self) -> ACResult<()> {
