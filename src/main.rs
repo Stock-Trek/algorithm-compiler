@@ -6,7 +6,7 @@ use crate::{
     tasks::task::{Task, TaskTrait},
 };
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
-use std::sync::Arc;
+use std::{sync::Arc, time::SystemTime};
 use tracing_subscriber::{EnvFilter, fmt::Subscriber};
 
 mod archive;
@@ -48,9 +48,10 @@ impl Handler {
     }
 
     async fn handle(&self, event: LambdaEvent<SqsEvent>) -> Result<SqsEventResponse, Error> {
+        let deadline = event.context.deadline();
         let mut response = SqsEventResponse::default();
         for record in event.payload.records {
-            if let Err(error) = self.process_record(&record.body).await {
+            if let Err(error) = self.process_record(&record.body, deadline).await {
                 tracing::error!(
                     message_id = %record.message_id,
                     %error,
@@ -62,12 +63,12 @@ impl Handler {
         Ok(response)
     }
 
-    async fn process_record(&self, body: &str) -> ACResult<()> {
+    async fn process_record(&self, body: &str, deadline: SystemTime) -> ACResult<()> {
         let message: SqsMessage = serde_json::from_str(body).map_err(|error| {
             ACError::InvalidMessage(format!("Failed to deserialize SQS message: {error}"))
         })?;
         let task: Task = message.into();
-        task.handle(&self.aws).await
+        task.handle(&self.aws, deadline).await
     }
 }
 

@@ -8,6 +8,7 @@ use crate::{
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
 use async_trait::async_trait;
+use std::time::SystemTime;
 
 pub struct RenameRepoTask {
     provider: GitProvider,
@@ -27,11 +28,11 @@ impl RenameRepoTask {
 
 #[async_trait]
 impl TaskTrait for RenameRepoTask {
-    async fn handle(&self, aws: &Aws) -> ACResult<()> {
+    async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let refs = RepoRefs::new(&aws.config, &self.ids)?;
         let repo = GitRepo::new(&self.provider, &self.names.account, &self.names.repo, None);
         aws.dynamodb
-            .locked(&refs.lock_ref, || async {
+            .locked(&refs.lock_ref, deadline, || async {
                 let files = Files::new();
                 files.clean()?;
                 if !aws.s3.download(&refs.repo_ref, &files.archive).await? {
