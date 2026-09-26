@@ -43,11 +43,11 @@ impl RepoRefs {
         files.prepare()?;
         if aws.s3.download(&self.repo_ref, &files.archive).await? {
             Archive::extract(&files.archive, &files.repo)?;
-            repo.fetch(&files.repo)?;
+            repo.fetch(&files.repo).await?;
         } else {
-            repo.clone_bare(&files.repo)?;
+            repo.clone_bare(&files.repo).await?;
         }
-        repo.create_ref(&files.repo)?;
+        repo.create_ref(&files.repo).await?;
         Archive::create(&files.repo, &files.archive)?;
         aws.s3.upload(&self.repo_ref, &files.archive).await?;
         Ok(())

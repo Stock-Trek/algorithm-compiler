@@ -118,8 +118,8 @@ impl TaskTrait for CommitTask {
         aws.dynamodb
             .locked(&refs.lock_ref, || async {
                 refs.sync(aws, &files, &repo).await?;
-                files.copy_algorithms(&self.commit_hash)?;
-                let compile_result = files.compile();
+                files.copy_algorithms(&self.commit_hash).await?;
+                let compile_result = files.compile().await;
                 self.upload_raw_compile_output(aws, &files).await?;
                 let compile_result = compile_result?;
                 self.upload_compile_output(aws, &compile_result).await?;

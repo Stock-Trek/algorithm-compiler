@@ -57,7 +57,8 @@ impl S3 {
             .await;
         match result {
             Ok(output) => {
-                if let Err(error) = Self::write_body(object_ref, output.body, sink_file_path).await {
+                if let Err(error) = Self::write_body(object_ref, output.body, sink_file_path).await
+                {
                     let _ = tokio::fs::remove_file(sink_file_path).await;
                     return Err(error);
                 }

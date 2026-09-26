@@ -38,7 +38,7 @@ impl TaskTrait for RenameRepoTask {
                     return Ok(());
                 }
                 Archive::extract(&files.archive, &files.repo)?;
-                repo.set_remote(&files.repo)?;
+                repo.set_remote(&files.repo).await?;
                 Archive::create(&files.repo, &files.archive)?;
                 aws.s3.upload(&refs.repo_ref, &files.archive).await
             })

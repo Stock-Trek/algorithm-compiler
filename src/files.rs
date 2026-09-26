@@ -9,8 +9,8 @@ use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    process::Command,
 };
+use tokio::process::Command;
 use tracing::{info, warn};
 
 const BASE: &str = "/tmp/algorithm-compiler";
@@ -69,7 +69,7 @@ impl Files {
         Self::copy_dir(Path::new(SOURCE), &self.build)
     }
 
-    pub fn copy_algorithms(&self, revision: &str) -> ACResult<()> {
+    pub async fn copy_algorithms(&self, revision: &str) -> ACResult<()> {
         fs::create_dir_all(&self.algorithms).map_err(ACError::FileSystem)?;
         let git_dir = Self::path_str(&self.repo)?;
         let algorithms = Self::path_str(&self.algorithms)?;
@@ -83,18 +83,18 @@ impl Files {
         let mut tar = Command::new("tar");
         tar.args(["-x", "-C", algorithms]);
         let mut commands = [git, tar];
-        Program::pipe(&mut commands)?;
+        Program::pipe(&mut commands).await?;
         Ok(())
     }
 
-    pub fn compile(&self) -> ACResult<CompileResult> {
+    pub async fn compile(&self) -> ACResult<CompileResult> {
         info!("compile");
-        let compile_result = self.build_wasm()?;
+        let compile_result = self.build_wasm().await?;
         info!("Build result {:?}", compile_result);
         if compile_result.failed() {
             return Ok(compile_result);
         }
-        self.compile_cwasm()?;
+        self.compile_cwasm().await?;
         Ok(compile_result)
     }
 
@@ -132,7 +132,7 @@ impl Files {
             .ok_or_else(|| ACError::InternalServer(format!("Path {:?} is not valid utf-8", path)))
     }
 
-    fn build_wasm(&self) -> ACResult<CompileResult> {
+    async fn build_wasm(&self) -> ACResult<CompileResult> {
         info!("Building wasm");
         let _ = fs::remove_file(self.build.join(BUILT_WASM));
         let output = Program::output_with_timeout(
@@ -147,7 +147,8 @@ impl Files {
             ],
             &self.build,
             Timeouts::command(),
-        )?;
+        )
+        .await?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
         let raw_output = Self::raw_compile_output(&stdout, &stderr);
@@ -186,14 +187,15 @@ impl Files {
         fs::write(self.compile_output_file(), raw).map_err(ACError::FileSystem)
     }
 
-    fn compile_cwasm(&self) -> ACResult<()> {
+    async fn compile_cwasm(&self) -> ACResult<()> {
         info!("Compiling cwasm");
         let _ = fs::remove_file(self.build.join(BUILT_CWASM));
         Program::run(
             "wasmtime",
             &["compile", "-C", "cache=no", BUILT_WASM, "-o", BUILT_CWASM],
             &self.build,
-        )?;
+        )
+        .await?;
         Ok(())
     }
 
