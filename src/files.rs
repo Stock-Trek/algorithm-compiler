@@ -148,14 +148,10 @@ impl Files {
             .map_err(ACError::CommandRun)?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-        self.save_compile_output(&stdout, &stderr)?;
+        let raw_output = Self::raw_compile_output(&stdout, &stderr);
+        self.save_compile_output(&raw_output)?;
         let compile_output = CompileOutput::from_stdout(stdout);
         let error_count = compile_output.errors.len();
-        if !compile_output.success && error_count == 0 {
-            return Err(ACError::InternalServer(
-                "Build failed but did not detect compile errors".into(),
-            ));
-        }
         if compile_output.success && error_count > 0 {
             return Err(ACError::InternalServer(
                 "Build succeeded but detected compile errors".into(),
@@ -166,6 +162,7 @@ impl Files {
                 result: CompileStatus::Failure,
                 errors: compile_output.errors,
                 compile_messages: compile_output.compile_messages,
+                raw_output: Some(raw_output),
             });
         }
         if !self.build.join(BUILT_WASM).exists() {
@@ -175,11 +172,15 @@ impl Files {
             result: CompileStatus::Success,
             errors: compile_output.errors,
             compile_messages: vec![],
+            raw_output: None,
         })
     }
 
-    fn save_compile_output(&self, stdout: &str, stderr: &str) -> ACResult<()> {
-        let raw = format!("--- stdout ---\n{stdout}\n--- stderr ---\n{stderr}\n");
+    fn raw_compile_output(stdout: &str, stderr: &str) -> String {
+        format!("--- stdout ---\n{stdout}\n--- stderr ---\n{stderr}\n")
+    }
+
+    fn save_compile_output(&self, raw: &str) -> ACResult<()> {
         fs::write(self.compile_output_file(), raw).map_err(ACError::FileSystem)
     }
 
