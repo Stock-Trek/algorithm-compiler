@@ -27,8 +27,8 @@ pub struct CompileMessage {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CodeLocation {
-    pub line: i32,
-    pub column: i32,
+    pub line: i64,
+    pub column: i64,
 }
 
 impl CompileResult {

@@ -373,7 +373,7 @@ impl CompileMessage {
 }
 
 impl CodeLocation {
-    fn int(span: &Value, key: &str) -> i32 {
-        span.get(key).and_then(|value| value.as_i64()).unwrap_or(0) as i32
+    fn int(span: &Value, key: &str) -> i64 {
+        span.get(key).and_then(|value| value.as_i64()).unwrap_or(0)
     }
 }
