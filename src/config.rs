@@ -3,11 +3,13 @@ use std::env;
 
 const DYNAMODB_LOCK_TABLE_ENV: &str = "DYNAMODB_LOCK_TABLE";
 const S3_BUCKET_COMMIT_ARTIFACTS_ENV: &str = "S3_BUCKET_COMMIT_ARTIFACTS";
+const SQS_DEAD_LETTER_QUEUE_URL_ENV: &str = "SQS_DEAD_LETTER_QUEUE_URL";
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub dynamodb_lock_table: String,
     pub s3_bucket_commit_artifacts: String,
+    pub sqs_dead_letter_queue_url: String,
 }
 
 impl Config {
@@ -15,6 +17,7 @@ impl Config {
         Ok(Self {
             dynamodb_lock_table: required(DYNAMODB_LOCK_TABLE_ENV)?,
             s3_bucket_commit_artifacts: required(S3_BUCKET_COMMIT_ARTIFACTS_ENV)?,
+            sqs_dead_letter_queue_url: required(SQS_DEAD_LETTER_QUEUE_URL_ENV)?,
         })
     }
 }
