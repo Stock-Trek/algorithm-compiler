@@ -23,6 +23,7 @@ const ALGORITHMS_FOLDER: &str = "src/algorithms";
 const CHECKED_FILE_PATH: &str = "src/algorithms/algorithm.rs";
 const BUILT_WASM: &str = "target/wasm32-wasip1/release/algorithm_runner.wasm";
 const BUILT_CWASM: &str = "algorithm-runner.cwasm";
+const COMPILE_OUTPUT_FILE: &str = "compile-output.txt";
 const COMPILER_MESSAGE: &str = "compiler-message";
 const BUILD_FINISHED: &str = "build-finished";
 const LEVEL_ERROR: &str = "error";
@@ -107,6 +108,10 @@ impl Files {
         self.build.join(BUILT_CWASM)
     }
 
+    pub fn compile_output_file(&self) -> PathBuf {
+        self.build.join(COMPILE_OUTPUT_FILE)
+    }
+
     pub fn sanitize_path(value: &str) -> String {
         value
             .chars()
@@ -136,10 +141,12 @@ impl Files {
             ])
             .current_dir(&self.build)
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .output()
             .map_err(ACError::CommandRun)?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        self.save_compile_output(&stdout, &stderr)?;
         let compile_output = CompileOutput::from_stdout(stdout)?;
         let error_count = compile_output.errors.len();
         if !compile_output.success && error_count == 0 {
@@ -167,6 +174,11 @@ impl Files {
             errors: compile_output.errors,
             compile_messages: vec![],
         })
+    }
+
+    fn save_compile_output(&self, stdout: &str, stderr: &str) -> ACResult<()> {
+        let raw = format!("--- stdout ---\n{stdout}\n--- stderr ---\n{stderr}\n");
+        fs::write(self.compile_output_file(), raw).map_err(ACError::FileSystem)
     }
 
     fn compile_cwasm(&self) -> ACResult<()> {

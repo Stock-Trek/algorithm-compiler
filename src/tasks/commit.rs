@@ -1,6 +1,6 @@
 use crate::{
     aws::Aws,
-    constants::{S3_BUCKET_UPLOADS, S3_COMPILE_RESULT_FILE},
+    constants::{S3_BUCKET_UPLOADS, S3_COMPILE_OUTPUT_FILE, S3_COMPILE_RESULT_FILE},
     dto::{compile_result::CompileResult, sqs_event::SqsRepoDetail},
     error::{ACError, ACResult},
     files::Files,
@@ -71,6 +71,19 @@ impl CommitTask {
             .await
     }
 
+    async fn upload_raw_compile_output(&self, aws: &Aws, files: &Files) -> ACResult<()> {
+        let path = files.compile_output_file();
+        if !path.exists() {
+            return Ok(());
+        }
+        self.upload(
+            aws,
+            &format!("{}/{S3_COMPILE_OUTPUT_FILE}", self.prefix()),
+            &path,
+        )
+        .await
+    }
+
     async fn upload(&self, aws: &Aws, key: &str, path: &Path) -> ACResult<()> {
         aws.s3
             .upload(
@@ -99,7 +112,9 @@ impl TaskTrait for CommitTask {
             .locked(&refs.lock_ref, || refs.sync(aws, &files, &repo))
             .await?;
         files.copy_algorithms(&self.commit_hash)?;
-        let compile_result = files.compile()?;
+        let compile_result = files.compile();
+        self.upload_raw_compile_output(aws, &files).await?;
+        let compile_result = compile_result?;
         self.upload_compile_output(aws, &compile_result).await?;
         if compile_result.failed() {
             return Ok(());
