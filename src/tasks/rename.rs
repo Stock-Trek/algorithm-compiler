@@ -24,7 +24,7 @@ impl RenameTask {
 impl TaskTrait for RenameTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
         let refs = RepoRefs::new(&self.ids);
-        let repo = GitRepo::new(&self.names.account, &self.names.repo, None, None);
+        let repo = GitRepo::new(&self.names.account, &self.names.repo, None);
         aws.dynamodb
             .locked(&refs.lock_ref, || async {
                 let files = Files::new();

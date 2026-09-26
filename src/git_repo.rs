@@ -4,23 +4,23 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct GitRepo {
     pub clone_url: String,
-    pub ref_name: Option<String>,
-    pub commit_hash: Option<String>,
+    pub commit: Option<GitCommit>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GitCommit {
+    pub ref_name: String,
+    pub commit_hash: String,
 }
 
 impl GitRepo {
-    pub fn new(
-        account: &str,
-        repo: &str,
-        branch_name: Option<&str>,
-        commit_hash: Option<&str>,
-    ) -> Self {
+    pub fn new(account: &str, repo: &str, commit: Option<(&str, &str)>) -> Self {
         Self {
             clone_url: format!("https://github.com/{account}/{repo}.git"),
-            ref_name: branch_name
-                .zip(commit_hash)
-                .map(|(branch, hash)| format!("refs/stock-trek/{branch}-{hash}")),
-            commit_hash: commit_hash.map(str::to_string),
+            commit: commit.map(|(branch_name, commit_hash)| GitCommit {
+                ref_name: format!("refs/stock-trek/{branch_name}-{commit_hash}"),
+                commit_hash: commit_hash.to_string(),
+            }),
         }
     }
 
@@ -38,11 +38,11 @@ impl GitRepo {
     }
 
     pub fn create_ref(&self, path: &Path) -> ACResult<String> {
-        match (&self.ref_name, &self.commit_hash) {
-            (Some(ref_name), Some(commit_hash)) => {
-                self.exec_git(path, &["update-ref", ref_name, commit_hash])
+        match &self.commit {
+            Some(commit) => {
+                self.exec_git(path, &["update-ref", &commit.ref_name, &commit.commit_hash])
             }
-            _ => Ok(String::new()),
+            None => Ok(String::new()),
         }
     }
 

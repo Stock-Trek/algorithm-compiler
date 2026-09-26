@@ -23,7 +23,7 @@ impl TaskTrait for AddReposTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
         for detail in &self.repos {
             let refs = RepoRefs::new(detail);
-            let repo = GitRepo::new(&detail.account, &detail.repo, None, None);
+            let repo = GitRepo::new(&detail.account, &detail.repo, None);
             let files = Files::new();
             aws.dynamodb
                 .locked(&refs.lock_ref, || refs.sync(aws, &files, &repo))

@@ -104,8 +104,7 @@ impl TaskTrait for CommitTask {
         let repo = GitRepo::new(
             &self.repo.account,
             &self.repo.repo,
-            Some(&self.branch_name),
-            Some(&self.commit_hash),
+            Some((&self.branch_name, &self.commit_hash)),
         );
         let files = Files::new();
         aws.dynamodb
