@@ -1,3 +1,4 @@
+use crate::error::{ACError, ACResult};
 use std::time::Duration;
 
 const COMMAND_TIMEOUT_ENV: &str = "COMMAND_TIMEOUT_SECONDS";
@@ -8,27 +9,40 @@ const DEFAULT_COMMAND_TIMEOUT: Duration = Duration::from_secs(600);
 const DEFAULT_AWS_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const DEFAULT_AWS_OPERATION_TIMEOUT: Duration = Duration::from_secs(120);
 
-pub struct Timeouts;
+#[derive(Debug, Clone, Copy)]
+pub struct Timeouts {
+    pub command: Duration,
+    pub aws_connect: Duration,
+    pub aws_operation: Duration,
+}
 
 impl Timeouts {
-    pub fn command() -> Duration {
-        Self::duration_from_env(COMMAND_TIMEOUT_ENV, DEFAULT_COMMAND_TIMEOUT)
+    pub fn from_env() -> ACResult<Self> {
+        Ok(Self {
+            command: Self::duration(COMMAND_TIMEOUT_ENV, DEFAULT_COMMAND_TIMEOUT)?,
+            aws_connect: Self::duration(AWS_CONNECT_TIMEOUT_ENV, DEFAULT_AWS_CONNECT_TIMEOUT)?,
+            aws_operation: Self::duration(
+                AWS_OPERATION_TIMEOUT_ENV,
+                DEFAULT_AWS_OPERATION_TIMEOUT,
+            )?,
+        })
     }
 
-    pub fn aws_connect() -> Duration {
-        Self::duration_from_env(AWS_CONNECT_TIMEOUT_ENV, DEFAULT_AWS_CONNECT_TIMEOUT)
-    }
-
-    pub fn aws_operation() -> Duration {
-        Self::duration_from_env(AWS_OPERATION_TIMEOUT_ENV, DEFAULT_AWS_OPERATION_TIMEOUT)
-    }
-
-    fn duration_from_env(key: &str, default: Duration) -> Duration {
-        std::env::var(key)
-            .ok()
-            .and_then(|value| value.parse::<u64>().ok())
-            .filter(|seconds| *seconds > 0)
-            .map(Duration::from_secs)
-            .unwrap_or(default)
+    fn duration(key: &str, default: Duration) -> ACResult<Duration> {
+        match std::env::var(key) {
+            Ok(value) => {
+                let seconds = value.parse::<u64>().map_err(|_| {
+                    ACError::Config(format!("{key} must be a whole number of seconds"))
+                })?;
+                if seconds == 0 {
+                    return Err(ACError::Config(format!("{key} must be greater than 0")));
+                }
+                Ok(Duration::from_secs(seconds))
+            }
+            Err(std::env::VarError::NotPresent) => Ok(default),
+            Err(std::env::VarError::NotUnicode(_)) => {
+                Err(ACError::Config(format!("{key} is not valid UTF-8")))
+            }
+        }
     }
 }

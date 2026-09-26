@@ -1,7 +1,4 @@
-use crate::{
-    error::{ACError, ACResult},
-    timeouts::Timeouts,
-};
+use crate::error::{ACError, ACResult};
 use std::{
     path::Path,
     process::{ExitStatus, Output, Stdio},
@@ -35,10 +32,6 @@ const CLEAN_ENV_ALLOWLIST: [&str; 11] = [
 pub struct Program;
 
 impl Program {
-    pub async fn run(program: &str, args: &[&str], cwd: &Path) -> ACResult<String> {
-        Self::run_with_timeout(program, args, cwd, Timeouts::command()).await
-    }
-
     pub async fn run_with_timeout(
         program: &str,
         args: &[&str],
@@ -54,8 +47,13 @@ impl Program {
     /// Used for processing attacker-controlled sources and build artifacts so
     /// that the Lambda's credentials and other secrets are never visible to
     /// the spawned process.
-    pub async fn run_with_clean_env(program: &str, args: &[&str], cwd: &Path) -> ACResult<String> {
-        let output = Self::output_with_clean_env(program, args, cwd, Timeouts::command()).await?;
+    pub async fn run_with_clean_env(
+        program: &str,
+        args: &[&str],
+        cwd: &Path,
+        timeout: Duration,
+    ) -> ACResult<String> {
+        let output = Self::output_with_clean_env(program, args, cwd, timeout).await?;
         Self::output_to_string(output)
     }
 
@@ -110,10 +108,6 @@ impl Program {
             .spawn()
             .map_err(ACError::CommandRun)?;
         Self::collect_output(child, program, timeout).await
-    }
-
-    pub async fn pipe(commands: &mut [Command]) -> ACResult<Output> {
-        Self::pipe_with_timeout(commands, Timeouts::command()).await
     }
 
     pub async fn pipe_with_timeout(

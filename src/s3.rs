@@ -1,13 +1,11 @@
-use crate::{
-    error::{ACError, ACResult},
-    timeouts::Timeouts,
-};
+use crate::error::{ACError, ACResult};
 use aws_sdk_s3::{
     Client as S3Client,
     types::{Delete, ObjectIdentifier},
 };
 use aws_smithy_types::byte_stream::ByteStream;
 use std::path::Path;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct S3ObjectRef {
@@ -17,6 +15,7 @@ pub struct S3ObjectRef {
 
 pub struct S3 {
     pub client: S3Client,
+    pub operation_timeout: Duration,
 }
 
 impl S3 {
@@ -57,7 +56,13 @@ impl S3 {
             .await;
         match result {
             Ok(output) => {
-                if let Err(error) = Self::write_body(object_ref, output.body, sink_file_path).await
+                if let Err(error) = Self::write_body(
+                    object_ref,
+                    output.body,
+                    sink_file_path,
+                    self.operation_timeout,
+                )
+                .await
                 {
                     let _ = tokio::fs::remove_file(sink_file_path).await;
                     return Err(error);
@@ -82,23 +87,21 @@ impl S3 {
         object_ref: &S3ObjectRef,
         body: ByteStream,
         sink_file_path: &Path,
+        operation_timeout: Duration,
     ) -> ACResult<()> {
         let mut body = body.into_async_read();
         let mut file = tokio::fs::File::create(sink_file_path)
             .await
             .map_err(ACError::FileSystem)?;
-        tokio::time::timeout(
-            Timeouts::aws_operation(),
-            tokio::io::copy(&mut body, &mut file),
-        )
-        .await
-        .map_err(|_| {
-            ACError::Timeout(format!(
-                "S3 download {}/{} timed out",
-                object_ref.bucket, object_ref.key
-            ))
-        })?
-        .map_err(ACError::FileSystem)?;
+        tokio::time::timeout(operation_timeout, tokio::io::copy(&mut body, &mut file))
+            .await
+            .map_err(|_| {
+                ACError::Timeout(format!(
+                    "S3 download {}/{} timed out",
+                    object_ref.bucket, object_ref.key
+                ))
+            })?
+            .map_err(ACError::FileSystem)?;
         tokio::io::AsyncWriteExt::flush(&mut file)
             .await
             .map_err(ACError::FileSystem)?;

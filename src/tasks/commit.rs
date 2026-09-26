@@ -136,14 +136,17 @@ impl TaskTrait for CommitTask {
             &self.ids.account,
             &self.ids.repo,
             Some((&self.branch_name, &self.commit_hash)),
+            aws.config.timeouts.command,
         );
         let files = Files::new();
         let refs_ref = &refs;
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {
                 refs_ref.sync(aws, files, &repo, &lock).await?;
-                files.copy_algorithms(&self.commit_hash).await?;
-                let compile_result = files.compile().await;
+                files
+                    .copy_algorithms(&self.commit_hash, aws.config.timeouts.command)
+                    .await?;
+                let compile_result = files.compile(aws.config.timeouts.command).await;
                 let s3 = aws.fenced_s3(&refs_ref.lock_ref, &lock);
                 let bucket = &aws.config.s3_bucket_commit_artifacts;
                 self.upload_raw_compile_output(bucket, &s3, files).await?;

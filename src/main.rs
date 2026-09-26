@@ -28,7 +28,19 @@ struct Tracing;
 
 impl Tracing {
     fn setup() -> Result<(), Error> {
-        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+        let filter = match std::env::var(EnvFilter::DEFAULT_ENV) {
+            Ok(directives) => EnvFilter::try_new(&directives).map_err(|error| {
+                ACError::Config(format!("{} is invalid: {error}", EnvFilter::DEFAULT_ENV))
+            })?,
+            Err(std::env::VarError::NotPresent) => EnvFilter::new("info"),
+            Err(std::env::VarError::NotUnicode(_)) => {
+                return Err(ACError::Config(format!(
+                    "{} is not valid UTF-8",
+                    EnvFilter::DEFAULT_ENV
+                ))
+                .into());
+            }
+        };
         let subscriber = Subscriber::builder()
             .with_ansi(false)
             .with_env_filter(filter)
