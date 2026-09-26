@@ -28,6 +28,7 @@ dependencies = [
  "aws-smithy-types",
  "flate2",
  "lambda_runtime",
+ "libc",
  "serde",
  "serde_json",
  "strum",
