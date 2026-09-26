@@ -1,6 +1,6 @@
 use crate::{
     aws::Aws,
-    constants::{S3_BUCKET_UPLOADS, S3_COMPILE_OUTPUT_FILE, S3_COMPILE_RESULT_FILE},
+    constants::{S3_COMPILE_OUTPUT_FILE, S3_COMPILE_RESULT_FILE},
     dto::{compile_result::CompileResult, sqs_event::SqsRepoDetail},
     error::{ACError, ACResult},
     files::Files,
@@ -63,7 +63,7 @@ impl CommitTask {
         aws.s3
             .upload_bytes(
                 &S3ObjectRef {
-                    bucket: S3_BUCKET_UPLOADS.into(),
+                    bucket: aws.config.s3_bucket_commit_artifacts.clone(),
                     key: format!("{}/{S3_COMPILE_RESULT_FILE}", self.prefix()),
                 },
                 body,
@@ -88,7 +88,7 @@ impl CommitTask {
         aws.s3
             .upload(
                 &S3ObjectRef {
-                    bucket: S3_BUCKET_UPLOADS.into(),
+                    bucket: aws.config.s3_bucket_commit_artifacts.clone(),
                     key: key.into(),
                 },
                 path,
@@ -100,7 +100,7 @@ impl CommitTask {
 #[async_trait]
 impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
-        let refs = RepoRefs::new(&self.repo);
+        let refs = RepoRefs::new(&aws.config, &self.repo);
         let repo = GitRepo::new(
             &self.repo.account,
             &self.repo.repo,

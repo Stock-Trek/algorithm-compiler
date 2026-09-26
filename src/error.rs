@@ -18,6 +18,8 @@ pub enum ACError {
     CommandRun(std::io::Error),
     #[error("CommandOutput: {0}")]
     CommandOutput(String),
+    #[error("Config: {0}")]
+    Config(String),
     #[error("DynamoDbDeleteItem: {0}")]
     DynamoDbDeleteItem(Box<DeleteItemError>),
     #[error("DynamoDbPutItem: {0}")]
