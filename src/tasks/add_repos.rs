@@ -11,19 +11,19 @@ use std::time::SystemTime;
 
 pub struct AddReposTask {
     provider: GitProvider,
-    repos: Vec<SqsRepoDetail>,
+    ids: Vec<SqsRepoDetail>,
 }
 
 impl AddReposTask {
-    pub fn new(provider: GitProvider, repos: Vec<SqsRepoDetail>) -> Self {
-        Self { provider, repos }
+    pub fn new(provider: GitProvider, ids: Vec<SqsRepoDetail>) -> Self {
+        Self { provider, ids }
     }
 }
 
 #[async_trait]
 impl TaskTrait for AddReposTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        for detail in &self.repos {
+        for detail in &self.ids {
             let refs = RepoRefs::new(&aws.config, detail)?;
             let repo = GitRepo::new(&self.provider, &detail.account, &detail.repo, None);
             let files = Files::new();

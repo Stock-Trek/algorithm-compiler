@@ -17,7 +17,7 @@ use std::{path::Path, time::SystemTime};
 
 pub struct CommitTask {
     provider: GitProvider,
-    repo: SqsRepoDetail,
+    ids: SqsRepoDetail,
     branch_name: String,
     commit_hash: String,
 }
@@ -25,13 +25,13 @@ pub struct CommitTask {
 impl CommitTask {
     pub fn new(
         provider: GitProvider,
-        repo: SqsRepoDetail,
+        ids: SqsRepoDetail,
         branch_name: String,
         commit_hash: String,
     ) -> Self {
         Self {
             provider,
-            repo,
+            ids,
             branch_name,
             commit_hash,
         }
@@ -40,8 +40,8 @@ impl CommitTask {
     fn prefix(&self) -> ACResult<String> {
         Ok(format!(
             "{}/{}/{}",
-            Files::sanitize_path(&self.repo.account)?,
-            Files::sanitize_path(&self.repo.repo)?,
+            Files::sanitize_path(&self.ids.account)?,
+            Files::sanitize_path(&self.ids.repo)?,
             Files::sanitize_path(&self.commit_hash)?
         ))
     }
@@ -107,11 +107,11 @@ impl CommitTask {
 #[async_trait]
 impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let refs = RepoRefs::new(&aws.config, &self.repo)?;
+        let refs = RepoRefs::new(&aws.config, &self.ids)?;
         let repo = GitRepo::new(
             &self.provider,
-            &self.repo.account,
-            &self.repo.repo,
+            &self.ids.account,
+            &self.ids.repo,
             Some((&self.branch_name, &self.commit_hash)),
         );
         let files = Files::new();
