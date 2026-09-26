@@ -1,20 +1,20 @@
 use crate::error::{ACError, ACResult};
 use std::env;
 
-const S3_BUCKET_UPLOADS_ENV: &str = "S3_BUCKET_UPLOADS";
 const DYNAMODB_LOCK_TABLE_ENV: &str = "DYNAMODB_LOCK_TABLE";
+const S3_BUCKET_COMMIT_ARTIFACTS_ENV: &str = "S3_BUCKET_COMMIT_ARTIFACTS";
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub s3_bucket_uploads: String,
     pub dynamodb_lock_table: String,
+    pub s3_bucket_uploads: String,
 }
 
 impl Config {
     pub fn from_env() -> ACResult<Self> {
         Ok(Self {
-            s3_bucket_uploads: required(S3_BUCKET_UPLOADS_ENV)?,
             dynamodb_lock_table: required(DYNAMODB_LOCK_TABLE_ENV)?,
+            s3_bucket_uploads: required(S3_BUCKET_COMMIT_ARTIFACTS_ENV)?,
         })
     }
 }
