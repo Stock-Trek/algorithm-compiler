@@ -57,6 +57,13 @@ impl Handler {
                     %error,
                     "Failed to process SQS message, reporting batch item failure",
                 );
+                if let Err(dlq_error) = self.aws.dlq.push(&record.body).await {
+                    tracing::error!(
+                        message_id = %record.message_id,
+                        %dlq_error,
+                        "Failed to push failing event to DLQ",
+                    );
+                }
                 response.add_failure(record.message_id);
             }
         }

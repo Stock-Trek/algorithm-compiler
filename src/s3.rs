@@ -136,13 +136,33 @@ impl S3 {
                 .set_objects(Some(chunk.to_vec()))
                 .build()
                 .map_err(ACError::Build)?;
-            self.client
+            let output = self
+                .client
                 .delete_objects()
                 .bucket(bucket)
                 .delete(delete)
                 .send()
                 .await
                 .map_err(|e| ACError::S3DeleteObjects(Box::new(e.into_service_error())))?;
+            let errors = output.errors();
+            if !errors.is_empty() {
+                let failures = errors
+                    .iter()
+                    .map(|failure| {
+                        format!(
+                            "key={:?} code={:?} message={:?}",
+                            failure.key(),
+                            failure.code(),
+                            failure.message()
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(ACError::S3DeleteObjectsPartial(format!(
+                    "Failed to delete {} object(s) under {bucket}/{prefix}: {failures}",
+                    errors.len()
+                )));
+            }
         }
         Ok(())
     }
