@@ -99,14 +99,14 @@ impl Program {
         cwd: &Path,
         timeout: Duration,
     ) -> ACResult<Output> {
-        let child = command
+        command
             .args(args)
             .current_dir(cwd)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(ACError::CommandRun)?;
+            .kill_on_drop(true);
+        Self::set_process_group(&mut command);
+        let child = command.spawn().map_err(ACError::CommandRun)?;
         Self::collect_output(child, program, timeout).await
     }
 
@@ -132,6 +132,7 @@ impl Program {
             cmd.stdout(Stdio::piped());
             cmd.stderr(Stdio::piped());
             cmd.kill_on_drop(true);
+            Self::set_process_group(cmd);
             match cmd.spawn() {
                 Ok(mut child) => {
                     prev_stdout = child.stdout.take();
@@ -139,6 +140,7 @@ impl Program {
                 }
                 Err(error) => {
                     for child in children.iter_mut() {
+                        Self::kill_process_group(child);
                         let _ = child.start_kill();
                     }
                     return Err(ACError::CommandRun(error));
@@ -166,7 +168,7 @@ impl Program {
             } => result?,
             _ = tokio::time::sleep(timeout) => {
                 for child in children.iter_mut() {
-                    let _ = child.kill().await;
+                    Self::kill_process_tree(child).await;
                 }
                 return Err(ACError::Timeout(format!(
                     "{} exceeded timeout of {timeout:?}",
@@ -246,12 +248,31 @@ impl Program {
         tokio::select! {
             status = child.wait() => status.map_err(ACError::CommandRun),
             _ = tokio::time::sleep(timeout) => {
-                let _ = child.kill().await;
+                Self::kill_process_tree(child).await;
                 Err(ACError::Timeout(format!(
                     "{program} exceeded timeout of {timeout:?}"
                 )))
             }
         }
+    }
+
+    fn set_process_group(command: &mut Command) {
+        use std::os::unix::process::CommandExt;
+        command.as_std_mut().process_group(0);
+    }
+
+    fn kill_process_group(child: &Child) {
+        if let Some(pid) = child.id() {
+            unsafe {
+                libc::kill(-(pid as i32), libc::SIGKILL);
+            }
+        }
+    }
+
+    async fn kill_process_tree(child: &mut Child) {
+        Self::kill_process_group(child);
+        let _ = child.start_kill();
+        let _ = child.wait().await;
     }
 
     async fn read_to_end<R: AsyncRead + Unpin>(mut reader: R) -> std::io::Result<Vec<u8>> {
