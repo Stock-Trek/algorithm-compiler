@@ -368,13 +368,19 @@ impl CompileMessage {
 
     fn user_file(file_name: &str) -> Option<String> {
         let normalized = file_name.replace('\\', "/");
-        let index = normalized.find(ALGORITHMS_FOLDER)?;
-        let path = &normalized[index..];
-        let in_folder = path
-            .as_bytes()
-            .get(ALGORITHMS_FOLDER.len())
-            .is_some_and(|byte| *byte == b'/');
-        in_folder.then(|| path.to_string())
+        let mut matched = None;
+        for (index, _) in normalized.match_indices(ALGORITHMS_FOLDER) {
+            let starts_at_separator = index == 0 || normalized.as_bytes()[index - 1] == b'/';
+            let ends_at_separator = normalized
+                .as_bytes()
+                .get(index + ALGORITHMS_FOLDER.len())
+                .is_some_and(|byte| *byte == b'/');
+            if starts_at_separator && ends_at_separator {
+                matched = Some(index);
+            }
+        }
+        let index = matched?;
+        Some(normalized[index..].to_string())
     }
 }
 
