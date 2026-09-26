@@ -155,7 +155,16 @@ impl DynamoDb {
         drop(heartbeat);
         let release = self.release_lock(lock_ref, &lock).await;
         match result {
-            Ok(value) => release.map(|_| value),
+            Ok(value) => {
+                if let Err(release_error) = release {
+                    error!(
+                        lock = %lock_ref.key_value,
+                        %release_error,
+                        "Failed to release lock after successful action",
+                    );
+                }
+                Ok(value)
+            }
             Err(error) => {
                 if let Err(release_error) = release {
                     error!(
