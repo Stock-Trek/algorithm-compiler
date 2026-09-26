@@ -31,7 +31,7 @@ impl CommitTask {
             "{}/{}/{}",
             Files::sanitize_path(&self.repo.account),
             Files::sanitize_path(&self.repo.repo),
-            self.commit_hash
+            Files::sanitize_path(&self.commit_hash)
         )
     }
 
