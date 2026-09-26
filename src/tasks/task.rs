@@ -4,13 +4,13 @@ use crate::{
     error::ACResult,
     tasks::{
         add_repos::AddReposTask, commit::CommitTask, remove_repos::RemoveReposTask,
-        rename::RenameTask,
+        rename_repo::RenameRepoTask,
     },
 };
 use async_trait::async_trait;
 
 pub enum Task {
-    Rename(RenameTask),
+    RenameRepo(RenameRepoTask),
     AddRepos(AddReposTask),
     RemoveRepos(RemoveReposTask),
     Commit(CommitTask),
@@ -25,7 +25,7 @@ pub trait TaskTrait {
 impl TaskTrait for Task {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
         match self {
-            Self::Rename(task) => task.handle(aws).await,
+            Self::RenameRepo(task) => task.handle(aws).await,
             Self::AddRepos(task) => task.handle(aws).await,
             Self::RemoveRepos(task) => task.handle(aws).await,
             Self::Commit(task) => task.handle(aws).await,
@@ -45,7 +45,9 @@ impl From<SqsMessage> for Task {
                 ..
             } => Self::Commit(CommitTask::new(ids, branch_name, commit_hash)),
             SqsDetail::RemoveRepos { ids } => Self::RemoveRepos(RemoveReposTask::new(ids)),
-            SqsDetail::Rename { ids, names } => Self::Rename(RenameTask::new(ids, names)),
+            SqsDetail::RenameRepo { ids, new_names } => {
+                Self::RenameRepo(RenameRepoTask::new(ids, new_names))
+            }
         }
     }
 }

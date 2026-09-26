@@ -9,19 +9,19 @@ use crate::{
 };
 use async_trait::async_trait;
 
-pub struct RenameTask {
+pub struct RenameRepoTask {
     ids: SqsRepoDetail,
     names: SqsRepoDetail,
 }
 
-impl RenameTask {
+impl RenameRepoTask {
     pub fn new(ids: SqsRepoDetail, names: SqsRepoDetail) -> Self {
         Self { ids, names }
     }
 }
 
 #[async_trait]
-impl TaskTrait for RenameTask {
+impl TaskTrait for RenameRepoTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
         let refs = RepoRefs::new(&aws.config, &self.ids);
         let repo = GitRepo::new(&self.names.account, &self.names.repo, None);

@@ -47,9 +47,9 @@ pub enum GitProvider {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SqsDetail {
-    Rename {
+    RenameRepo {
         ids: SqsRepoDetail,
-        names: SqsRepoDetail,
+        new_names: SqsRepoDetail,
     },
     AddRepos {
         ids: Vec<SqsRepoDetail>,
