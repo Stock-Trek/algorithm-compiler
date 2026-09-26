@@ -27,7 +27,7 @@ impl TaskTrait for RenameTask {
         let repo = GitRepo::new(&self.names.account, &self.names.repo, None);
         aws.dynamodb
             .locked(&refs.lock_ref, || async {
-                let files = Files::new(&aws.config);
+                let files = Files::new();
                 files.clean()?;
                 if !aws.s3.download(&refs.repo_ref, &files.archive).await? {
                     return Ok(());

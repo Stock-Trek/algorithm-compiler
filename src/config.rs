@@ -1,15 +1,11 @@
 use crate::error::{ACError, ACResult};
-use std::{env, path::PathBuf};
+use std::env;
 
-const WORK_DIR_ENV: &str = "WORK_DIR";
-const SOURCE_DIR_ENV: &str = "SOURCE_DIR";
 const S3_BUCKET_UPLOADS_ENV: &str = "S3_BUCKET_UPLOADS";
 const DYNAMODB_LOCK_TABLE_ENV: &str = "DYNAMODB_LOCK_TABLE";
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub work_dir: PathBuf,
-    pub source_dir: PathBuf,
     pub s3_bucket_uploads: String,
     pub dynamodb_lock_table: String,
 }
@@ -17,8 +13,6 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> ACResult<Self> {
         Ok(Self {
-            work_dir: PathBuf::from(required(WORK_DIR_ENV)?),
-            source_dir: PathBuf::from(required(SOURCE_DIR_ENV)?),
             s3_bucket_uploads: required(S3_BUCKET_UPLOADS_ENV)?,
             dynamodb_lock_table: required(DYNAMODB_LOCK_TABLE_ENV)?,
         })

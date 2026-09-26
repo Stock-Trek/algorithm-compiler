@@ -1,5 +1,4 @@
 use crate::{
-    config::Config,
     dto::compile_result::{CodeLocation, CompileMessage, CompileResult, CompileStatus},
     error::{ACError, ACResult},
     program::Program,
@@ -13,6 +12,8 @@ use std::{
 };
 use tracing::{info, warn};
 
+const BASE: &str = "/tmp/algorithm-compiler";
+const SOURCE: &str = "./algorithm-runner";
 const REPO_FOLDER: &str = "repo";
 const ARCHIVE_FILE: &str = "archive.tar.gz";
 const BUILD_FOLDER: &str = "build";
@@ -33,7 +34,6 @@ struct CompileOutput {
 
 pub struct Files {
     pub base: PathBuf,
-    pub source: PathBuf,
     pub archive: PathBuf,
     pub repo: PathBuf,
     pub build: PathBuf,
@@ -41,11 +41,10 @@ pub struct Files {
 }
 
 impl Files {
-    pub fn new(config: &Config) -> Self {
-        let base = config.work_dir.clone();
+    pub fn new() -> Self {
+        let base = PathBuf::from(BASE);
         let build = base.join(BUILD_FOLDER);
         Self {
-            source: config.source_dir.clone(),
             archive: base.join(ARCHIVE_FILE),
             repo: base.join(REPO_FOLDER),
             algorithms: build.join(ALGORITHMS_FOLDER),
@@ -63,7 +62,7 @@ impl Files {
 
     pub fn prepare(&self) -> ACResult<()> {
         self.clean()?;
-        Self::copy_dir(&self.source, &self.build)
+        Self::copy_dir(Path::new(SOURCE), &self.build)
     }
 
     pub fn copy_algorithms(&self, revision: &str) -> ACResult<()> {
