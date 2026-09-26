@@ -23,7 +23,7 @@ impl RenameRepoTask {
 #[async_trait]
 impl TaskTrait for RenameRepoTask {
     async fn handle(&self, aws: &Aws) -> ACResult<()> {
-        let refs = RepoRefs::new(&aws.config, &self.ids);
+        let refs = RepoRefs::new(&aws.config, &self.ids)?;
         let repo = GitRepo::new(&self.names.account, &self.names.repo, None);
         aws.dynamodb
             .locked(&refs.lock_ref, || async {
