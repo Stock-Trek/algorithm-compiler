@@ -48,7 +48,7 @@ impl Aws {
         Self {
             dlq: Dlq {
                 client: SqsClient::new(&sdk_config),
-                queue_url: config.sqs_dlq_url.clone(),
+                queue_url: config.sqs_dead_letter_queue_url.clone(),
             },
             config,
             dynamodb: DynamoDb {
