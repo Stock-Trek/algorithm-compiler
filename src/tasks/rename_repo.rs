@@ -31,17 +31,20 @@ impl TaskTrait for RenameRepoTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let refs = RepoRefs::new(&aws.config, &self.ids)?;
         let repo = GitRepo::new(&self.provider, &self.names.account, &self.names.repo, None);
+        let refs_ref = &refs;
         aws.dynamodb
-            .locked(&refs.lock_ref, deadline, || async {
+            .locked(&refs.lock_ref, deadline, move |lock| async move {
                 let files = Files::new();
                 files.clean()?;
-                if !aws.s3.download(&refs.repo_ref, &files.archive).await? {
+                if !aws.s3.download(&refs_ref.repo_ref, &files.archive).await? {
                     return Ok(());
                 }
                 Archive::extract(&files.archive, &files.repo)?;
                 repo.set_remote(&files.repo).await?;
                 Archive::create(&files.repo, &files.archive)?;
-                aws.s3.upload(&refs.repo_ref, &files.archive).await
+                aws.fenced_s3(&refs_ref.lock_ref, &lock)
+                    .upload(&refs_ref.repo_ref, &files.archive)
+                    .await
             })
             .await
     }

@@ -16,6 +16,7 @@ mod constants;
 mod dto;
 mod dynamodb;
 mod error;
+mod fenced;
 mod files;
 mod git_repo;
 mod program;

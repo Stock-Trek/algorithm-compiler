@@ -23,10 +23,12 @@ impl TaskTrait for RemoveReposTask {
         for detail in &self.repos {
             let refs = RepoRefs::new(&aws.config, detail)?;
             let prefix = RepoRefs::prefix(detail)?;
+            let refs_ref = &refs;
+            let prefix_ref = &prefix;
             aws.dynamodb
-                .locked(&refs.lock_ref, deadline, || async {
-                    aws.s3
-                        .delete_objects_with_prefix(&refs.repo_ref.bucket, &prefix)
+                .locked(&refs.lock_ref, deadline, move |lock| async move {
+                    aws.fenced_s3(&refs_ref.lock_ref, &lock)
+                        .delete_objects_with_prefix(&refs_ref.repo_ref.bucket, prefix_ref)
                         .await
                 })
                 .await?;

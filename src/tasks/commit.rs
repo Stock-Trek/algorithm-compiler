@@ -7,6 +7,7 @@ use crate::{
         sqs_event::{GitProvider, SqsRepoDetail},
     },
     error::{ACError, ACResult},
+    fenced::FencedS3,
     files::{ALGORITHMS_ARCHIVE_FILE, Files},
     git_repo::GitRepo,
     s3::S3ObjectRef,
@@ -46,61 +47,83 @@ impl CommitTask {
         ))
     }
 
-    async fn upload_artifacts(&self, aws: &Aws, files: &Files) -> ACResult<()> {
+    async fn upload_artifacts(
+        &self,
+        bucket: &str,
+        s3: &FencedS3<'_>,
+        files: &Files,
+    ) -> ACResult<()> {
         let prefix = self.prefix()?;
         Archive::create(&files.algorithms, &files.algorithms_archive)?;
         self.upload(
-            aws,
+            bucket,
+            s3,
             &format!("{prefix}/{ALGORITHMS_ARCHIVE_FILE}"),
             &files.algorithms_archive,
         )
         .await?;
-        self.upload(aws, &format!("{prefix}/binary.cwasm"), &files.cwasm_file())
-            .await
+        self.upload(
+            bucket,
+            s3,
+            &format!("{prefix}/binary.cwasm"),
+            &files.cwasm_file(),
+        )
+        .await
     }
 
     async fn upload_compile_output(
         &self,
-        aws: &Aws,
+        bucket: &str,
+        s3: &FencedS3<'_>,
         compile_result: &CompileResult,
     ) -> ACResult<()> {
         let body = serde_json::to_vec(compile_result).map_err(|error| {
             ACError::InternalServer(format!("Failed to serialize compile result: {error}"))
         })?;
-        aws.s3
-            .upload_bytes(
-                &S3ObjectRef {
-                    bucket: aws.config.s3_bucket_commit_artifacts.clone(),
-                    key: format!("{}/{S3_COMPILE_RESULT_FILE}", self.prefix()?),
-                },
-                body,
-            )
-            .await
+        s3.upload_bytes(
+            &S3ObjectRef {
+                bucket: bucket.into(),
+                key: format!("{}/{S3_COMPILE_RESULT_FILE}", self.prefix()?),
+            },
+            body,
+        )
+        .await
     }
 
-    async fn upload_raw_compile_output(&self, aws: &Aws, files: &Files) -> ACResult<()> {
+    async fn upload_raw_compile_output(
+        &self,
+        bucket: &str,
+        s3: &FencedS3<'_>,
+        files: &Files,
+    ) -> ACResult<()> {
         let path = files.compile_output_file();
         if !path.exists() {
             return Ok(());
         }
         self.upload(
-            aws,
+            bucket,
+            s3,
             &format!("{}/{S3_COMPILE_OUTPUT_FILE}", self.prefix()?),
             &path,
         )
         .await
     }
 
-    async fn upload(&self, aws: &Aws, key: &str, path: &Path) -> ACResult<()> {
-        aws.s3
-            .upload(
-                &S3ObjectRef {
-                    bucket: aws.config.s3_bucket_commit_artifacts.clone(),
-                    key: key.into(),
-                },
-                path,
-            )
-            .await
+    async fn upload(
+        &self,
+        bucket: &str,
+        s3: &FencedS3<'_>,
+        key: &str,
+        path: &Path,
+    ) -> ACResult<()> {
+        s3.upload(
+            &S3ObjectRef {
+                bucket: bucket.into(),
+                key: key.into(),
+            },
+            path,
+        )
+        .await
     }
 }
 
@@ -115,18 +138,22 @@ impl TaskTrait for CommitTask {
             Some((&self.branch_name, &self.commit_hash)),
         );
         let files = Files::new();
+        let refs_ref = &refs;
         aws.dynamodb
-            .locked(&refs.lock_ref, deadline, || async {
-                refs.sync(aws, files, &repo).await?;
+            .locked(&refs.lock_ref, deadline, move |lock| async move {
+                refs_ref.sync(aws, files, &repo, &lock).await?;
                 files.copy_algorithms(&self.commit_hash).await?;
                 let compile_result = files.compile().await;
-                self.upload_raw_compile_output(aws, files).await?;
+                let s3 = aws.fenced_s3(&refs_ref.lock_ref, &lock);
+                let bucket = &aws.config.s3_bucket_commit_artifacts;
+                self.upload_raw_compile_output(bucket, &s3, files).await?;
                 let compile_result = compile_result?;
-                self.upload_compile_output(aws, &compile_result).await?;
+                self.upload_compile_output(bucket, &s3, &compile_result)
+                    .await?;
                 if compile_result.failed() {
                     return Ok(());
                 }
-                self.upload_artifacts(aws, files).await
+                self.upload_artifacts(bucket, &s3, files).await
             })
             .await
     }
