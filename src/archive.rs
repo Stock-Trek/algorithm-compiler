@@ -2,10 +2,10 @@ use crate::error::{ACError, ACResult};
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use std::{fs, path::Path};
 
-pub struct Archive {}
+pub struct Archive;
 
 impl Archive {
-    pub fn create(source_dir: &Path, archive: &Path) -> ACResult<String> {
+    pub fn create(source_dir: &Path, archive: &Path) -> ACResult<()> {
         if let Some(parent) = archive.parent() {
             fs::create_dir_all(parent).map_err(ACError::FileSystem)?;
         }
@@ -18,14 +18,14 @@ impl Archive {
             .map_err(ACError::FileSystem)?;
         let encoder = builder.into_inner().map_err(ACError::FileSystem)?;
         encoder.finish().map_err(ACError::FileSystem)?;
-        Ok(String::new())
+        Ok(())
     }
 
-    pub fn extract(archive: &Path, sink_dir: &Path) -> ACResult<String> {
+    pub fn extract(archive: &Path, sink_dir: &Path) -> ACResult<()> {
         let file = fs::File::open(archive).map_err(ACError::FileSystem)?;
         let decoder = GzDecoder::new(file);
         let mut builder = tar::Archive::new(decoder);
         builder.unpack(sink_dir).map_err(ACError::FileSystem)?;
-        Ok(String::new())
+        Ok(())
     }
 }
