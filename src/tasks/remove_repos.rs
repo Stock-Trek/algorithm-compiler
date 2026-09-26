@@ -22,17 +22,13 @@ impl TaskTrait for RemoveReposTask {
         for detail in &self.repos {
             let refs = RepoRefs::new(detail);
             let prefix = RepoRefs::prefix(detail);
-            let result = aws
-                .dynamodb
+            aws.dynamodb
                 .locked(&refs.lock_ref, async {
                     aws.s3
                         .delete_objects_with_prefix(&refs.repo_ref.bucket, &prefix)
                         .await
                 })
-                .await;
-            if let Err(error) = result {
-                eprintln!("Failed to remove repo: {:?}: {error}", detail);
-            }
+                .await?;
         }
         Ok(())
     }
