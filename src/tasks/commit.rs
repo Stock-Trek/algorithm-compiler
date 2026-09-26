@@ -100,8 +100,9 @@ impl TaskTrait for CommitTask {
             .await?;
         files.copy_algorithms(&self.commit_hash)?;
         let compile_result = files.compile()?;
+        self.upload_compile_output(aws, &compile_result).await?;
         if compile_result.failed() {
-            return self.upload_compile_output(aws, &compile_result).await;
+            return Ok(());
         }
         self.upload_artifacts(aws, &files).await
     }

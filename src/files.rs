@@ -29,6 +29,7 @@ const LEVEL_ERROR: &str = "error";
 
 struct CompileOutput {
     success: bool,
+    errors: Vec<String>,
     compile_messages: Vec<CompileMessage>,
 }
 
@@ -85,12 +86,13 @@ impl Files {
 
     pub fn compile(&self) -> ACResult<CompileResult> {
         info!("compile");
-        let build_result = self.build_wasm()?;
-        info!("Build result {:?}", build_result);
-        if build_result.result == RESULT_FAILURE {
-            return Ok(build_result);
+        let compile_result = self.build_wasm()?;
+        info!("Build result {:?}", compile_result);
+        if compile_result.failed() {
+            return Ok(compile_result);
         }
-        self.compile_cwasm()
+        self.compile_cwasm()?;
+        Ok(compile_result)
     }
 
     pub fn algorithm_file(&self) -> PathBuf {
@@ -139,11 +141,7 @@ impl Files {
             .map_err(ACError::CommandRun)?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let compile_output = CompileOutput::from_stdout(stdout)?;
-        let error_count = compile_output
-            .compile_messages
-            .iter()
-            .filter(|message| message.level == LEVEL_ERROR)
-            .count();
+        let error_count = compile_output.errors.len();
         if !compile_output.success && error_count == 0 {
             return Err(ACError::InternalServer(
                 "Build failed but did not detect compile errors".into(),
@@ -157,7 +155,7 @@ impl Files {
         if !compile_output.success {
             return Ok(CompileResult {
                 result: RESULT_FAILURE.into(),
-                errors: vec![],
+                errors: compile_output.errors,
                 compile_messages: compile_output.compile_messages,
             });
         }
@@ -166,12 +164,12 @@ impl Files {
         }
         Ok(CompileResult {
             result: RESULT_SUCCESS.into(),
-            errors: vec![],
+            errors: compile_output.errors,
             compile_messages: vec![],
         })
     }
 
-    fn compile_cwasm(&self) -> ACResult<CompileResult> {
+    fn compile_cwasm(&self) -> ACResult<()> {
         info!("Compiling cwasm");
         let _ = fs::remove_file(self.build.join(BUILT_CWASM));
         Program::run(
@@ -179,11 +177,7 @@ impl Files {
             &["compile", "-C", "cache=no", BUILT_WASM, "-o", BUILT_CWASM],
             &self.build,
         )?;
-        Ok(CompileResult {
-            result: RESULT_SUCCESS.into(),
-            errors: vec![],
-            compile_messages: vec![],
-        })
+        Ok(())
     }
 
     fn copy_dir(source: &Path, destination: &Path) -> ACResult<()> {
@@ -206,6 +200,7 @@ impl CompileOutput {
     fn from_stdout(stdout: String) -> ACResult<Self> {
         info!("Get compile output from stdout");
         let mut success = false;
+        let mut errors = Vec::new();
         let mut compile_messages = Vec::new();
         for raw_line in stdout.lines() {
             let cleaned_line = raw_line.trim();
@@ -220,7 +215,12 @@ impl CompileOutput {
                 continue;
             };
             match reason {
-                COMPILER_MESSAGE => compile_messages.extend(CompileMessage::from_values(&values)),
+                COMPILER_MESSAGE => {
+                    if let Some(error) = CompileMessage::error(&values) {
+                        errors.push(error);
+                    }
+                    compile_messages.extend(CompileMessage::from_values(&values));
+                }
                 BUILD_FINISHED => {
                     success = values
                         .get("success")
@@ -232,12 +232,25 @@ impl CompileOutput {
         }
         Ok(Self {
             success,
+            errors,
             compile_messages,
         })
     }
 }
 
 impl CompileMessage {
+    fn error(values: &HashMap<String, Value>) -> Option<String> {
+        let message_dict = values.get("message").and_then(|value| value.as_object())?;
+        let level = message_dict.get("level").and_then(|value| value.as_str())?;
+        if level != LEVEL_ERROR {
+            return None;
+        }
+        message_dict
+            .get("message")
+            .and_then(|value| value.as_str())
+            .map(str::to_string)
+    }
+
     fn from_values(values: &HashMap<String, Value>) -> Vec<Self> {
         let Some(message_dict) = values.get("message").and_then(|value| value.as_object()) else {
             return Vec::new();
