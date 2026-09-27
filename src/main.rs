@@ -20,6 +20,7 @@ mod fenced;
 mod files;
 mod git_local;
 mod git_remote;
+mod github;
 mod program;
 mod s3;
 mod tasks;
