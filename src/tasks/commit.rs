@@ -130,27 +130,26 @@ impl CommitTask {
 #[async_trait]
 impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let clone_url = "TODO";
-        let ref_name = "TODO";
-        let commit_hash = "TODO";
+        let clone_url = aws
+            .github
+            .repo(self.provider.installation_id(), self.id.repo_number()?)
+            .await?
+            .clone_url;
+        let ref_name = GitRepo::stock_trek_ref_name(&self.branch_name, &self.commit_hash);
         let refs = RepoRefs::new(&aws.config, &self.id)?;
-        let repo = GitRepo::new(aws.config.timeouts);
-        let files = Files::new();
         let refs_ref = &refs;
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {
                 refs_ref
                     .sync(
-                        clone_url,
-                        ref_name,
-                        commit_hash,
+                        &clone_url,
+                        Some((&ref_name, &self.commit_hash)),
                         aws,
-                        files,
-                        &repo,
                         &lock,
                         deadline,
                     )
                     .await?;
+                let files = Files::new();
                 files
                     .copy_algorithms(&self.commit_hash, &aws.config.timeouts, deadline)
                     .await?;

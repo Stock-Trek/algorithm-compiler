@@ -1,3 +1,4 @@
+use crate::error::{ACError, ACResult};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
@@ -82,6 +83,14 @@ pub struct SqsRepoId {
     pub repo_id: String,
 }
 
+impl SqsRepoId {
+    pub fn repo_number(&self) -> ACResult<u64> {
+        self.repo_id.parse().map_err(|error| {
+            ACError::InvalidMessage(format!("Invalid repository id {:?}: {error}", self.repo_id))
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SqsRefType {
@@ -96,4 +105,14 @@ pub enum GitProvider {
         delivery_id: String,
         installation_id: u64,
     },
+}
+
+impl GitProvider {
+    pub fn installation_id(&self) -> u64 {
+        match self {
+            Self::GitHub {
+                installation_id, ..
+            } => *installation_id,
+        }
+    }
 }

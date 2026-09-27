@@ -1,6 +1,6 @@
 use crate::{
     aws::Aws,
-    dto::sqs_event::{GitProvider, SqsRepoId},
+    dto::sqs_event::SqsRepoId,
     error::ACResult,
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
@@ -8,13 +8,12 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 
 pub struct RemoveReposTask {
-    provider: GitProvider,
     ids: Vec<SqsRepoId>,
 }
 
 impl RemoveReposTask {
-    pub fn new(provider: GitProvider, ids: Vec<SqsRepoId>) -> Self {
-        Self { provider, ids }
+    pub fn new(ids: Vec<SqsRepoId>) -> Self {
+        Self { ids }
     }
 }
 

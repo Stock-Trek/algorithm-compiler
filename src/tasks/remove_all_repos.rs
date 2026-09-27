@@ -1,6 +1,6 @@
 use crate::{
     aws::Aws,
-    dto::sqs_event::{GitProvider, SqsRepoId},
+    dto::sqs_event::SqsRepoId,
     error::ACResult,
     files::Files,
     tasks::{remove_repos::RemoveReposTask, task::TaskTrait},
@@ -9,16 +9,12 @@ use async_trait::async_trait;
 use std::{collections::BTreeSet, time::SystemTime};
 
 pub struct RemoveAllReposTask {
-    provider: GitProvider,
     account_id: String,
 }
 
 impl RemoveAllReposTask {
-    pub fn new(provider: GitProvider, account_id: String) -> Self {
-        Self {
-            provider,
-            account_id,
-        }
+    pub fn new(account_id: String) -> Self {
+        Self { account_id }
     }
 }
 
@@ -42,8 +38,6 @@ impl TaskTrait for RemoveAllReposTask {
                 repo_id,
             })
             .collect();
-        RemoveReposTask::new(self.provider.clone(), ids)
-            .handle(aws, deadline)
-            .await
+        RemoveReposTask::new(ids).handle(aws, deadline).await
     }
 }
