@@ -41,13 +41,38 @@ pub struct GitHub {
     client: Octocrab,
 }
 
+#[async_trait]
+impl GitHost for GitHub {
+    async fn account_id(&self) -> ACResult<String> {
+        Ok(self.owner().await?.id.to_string())
+    }
+
+    async fn account_repo_ids(&self) -> ACResult<Vec<String>> {
+        Ok(self
+            .repos()
+            .await?
+            .into_iter()
+            .map(|repo| repo.id.to_string())
+            .collect())
+    }
+
+    async fn account_repo_name(&self, repo_id: &str) -> ACResult<(String, String)> {
+        let repo = self.repo(Self::parse_repo_id(repo_id)?).await?;
+        Ok((repo.owner.login, repo.name))
+    }
+
+    async fn clone_url(&self, repo_id: &str) -> ACResult<String> {
+        Ok(self.repo(Self::parse_repo_id(repo_id)?).await?.clone_url)
+    }
+}
+
 impl GitHub {
     pub fn new(installation_id: u64) -> ACResult<Self> {
-        let app_id = required(GITHUB_APP_ID_ENV)?;
+        let app_id = Self::required(GITHUB_APP_ID_ENV)?;
         let app_id: u64 = app_id
             .parse()
             .map_err(|error| ACError::Config(format!("{GITHUB_APP_ID_ENV} is invalid: {error}")))?;
-        let private_key = required(GITHUB_APP_PRIVATE_KEY_ENV)?.replace("\\n", "\n");
+        let private_key = Self::required(GITHUB_APP_PRIVATE_KEY_ENV)?.replace("\\n", "\n");
         let key = EncodingKey::from_rsa_pem(private_key.as_bytes()).map_err(|error| {
             ACError::Config(format!("{GITHUB_APP_PRIVATE_KEY_ENV} is invalid: {error}"))
         })?;
@@ -63,7 +88,10 @@ impl GitHub {
             })?;
         Ok(Self { client })
     }
+}
 
+// helpers
+impl GitHub {
     async fn owner(&self) -> ACResult<GitHubOwner> {
         let params = RepositoriesParams {
             per_page: 1,
@@ -123,46 +151,23 @@ impl GitHub {
                 ACError::GitHub(format!("failed to get repository {repo_id}: {error}"))
             })
     }
-}
 
-#[async_trait]
-impl GitHost for GitHub {
-    async fn account_id(&self) -> ACResult<String> {
-        Ok(self.owner().await?.id.to_string())
+    fn parse_repo_id(repo_id: &str) -> ACResult<u64> {
+        repo_id
+            .parse()
+            .map_err(|_| ACError::InvalidMessage(format!("Invalid repo id: {repo_id:?}")))
     }
 
-    async fn account_repo_ids(&self) -> ACResult<Vec<String>> {
-        Ok(self
-            .repos()
-            .await?
-            .into_iter()
-            .map(|repo| repo.id.to_string())
-            .collect())
-    }
-
-    async fn account_repo_name(&self, repo_id: &str) -> ACResult<(String, String)> {
-        let repo = self.repo(parse_repo_id(repo_id)?).await?;
-        Ok((repo.owner.login, repo.name))
-    }
-
-    async fn clone_url(&self, repo_id: &str) -> ACResult<String> {
-        Ok(self.repo(parse_repo_id(repo_id)?).await?.clone_url)
-    }
-}
-
-fn parse_repo_id(repo_id: &str) -> ACResult<u64> {
-    repo_id
-        .parse()
-        .map_err(|_| ACError::InvalidMessage(format!("Invalid repo id: {repo_id:?}")))
-}
-
-fn required(key: &str) -> ACResult<String> {
-    match std::env::var(key) {
-        Ok(value) if !value.is_empty() => Ok(value),
-        Ok(_) => Err(ACError::Config(format!("{key} must not be empty"))),
-        Err(std::env::VarError::NotPresent) => Err(ACError::Config(format!("{key} must be set"))),
-        Err(std::env::VarError::NotUnicode(_)) => {
-            Err(ACError::Config(format!("{key} is not valid UTF-8")))
+    fn required(key: &str) -> ACResult<String> {
+        match std::env::var(key) {
+            Ok(value) if !value.is_empty() => Ok(value),
+            Ok(_) => Err(ACError::Config(format!("{key} must not be empty"))),
+            Err(std::env::VarError::NotPresent) => {
+                Err(ACError::Config(format!("{key} must be set")))
+            }
+            Err(std::env::VarError::NotUnicode(_)) => {
+                Err(ACError::Config(format!("{key} is not valid UTF-8")))
+            }
         }
     }
 }
