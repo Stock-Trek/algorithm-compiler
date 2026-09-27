@@ -3,14 +3,17 @@ use crate::{
     dto::sqs_event::{SqsDetail, SqsMessage},
     error::ACResult,
     tasks::{
-        add_ref::AddRefTask, add_repos::AddReposTask, commit::CommitTask,
-        delete_ref::DeleteRefTask, remove_repos::RemoveReposTask, rename_repo::RenameRepoTask,
+        add_all_repos::AddAllReposTask, add_ref::AddRefTask, add_repos::AddReposTask,
+        commit::CommitTask, delete_ref::DeleteRefTask, remove_all_repos::RemoveAllReposTask,
+        remove_repos::RemoveReposTask, rename_repo::RenameRepoTask,
     },
 };
 use async_trait::async_trait;
 use std::time::SystemTime;
 
 pub enum Task {
+    AddAllRepos(AddAllReposTask),
+    RemoveAllRepos(RemoveAllReposTask),
     AddRepos(AddReposTask),
     RemoveRepos(RemoveReposTask),
     RenameRepo(RenameRepoTask),
@@ -28,6 +31,8 @@ pub trait TaskTrait {
 impl TaskTrait for Task {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         match self {
+            Self::AddAllRepos(task) => task.handle(aws, deadline).await,
+            Self::RemoveAllRepos(task) => task.handle(aws, deadline).await,
             Self::AddRepos(task) => task.handle(aws, deadline).await,
             Self::RemoveRepos(task) => task.handle(aws, deadline).await,
             Self::AddRef(task) => task.handle(aws, deadline).await,
@@ -42,6 +47,14 @@ impl From<SqsMessage> for Task {
     fn from(value: SqsMessage) -> Self {
         let SqsMessage { detail, .. } = value;
         match detail {
+            SqsDetail::AddAllRepos {
+                installation_id,
+                account_id,
+                ..
+            } => Self::AddAllRepos(AddAllReposTask::new(account_id, installation_id)),
+            SqsDetail::RemoveAllRepos { account_id, .. } => {
+                Self::RemoveAllRepos(RemoveAllReposTask::new(account_id))
+            }
             SqsDetail::AddRepos { ids, .. } => Self::AddRepos(AddReposTask::new(ids)),
             SqsDetail::RemoveRepos { ids, .. } => Self::RemoveRepos(RemoveReposTask::new(ids)),
             SqsDetail::AddRef {
@@ -56,9 +69,7 @@ impl From<SqsMessage> for Task {
                 ref_type,
                 ..
             } => Self::DeleteRef(DeleteRefTask::new(id, ref_name, ref_type)),
-            SqsDetail::RenameRepo { id, name, .. } => {
-                Self::RenameRepo(RenameRepoTask::new(id, name))
-            }
+            SqsDetail::RenameRepo { id, .. } => Self::RenameRepo(RenameRepoTask::new(id)),
             SqsDetail::Commit {
                 id,
                 branch_name,

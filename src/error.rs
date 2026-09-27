@@ -30,6 +30,8 @@ pub enum ACError {
     DynamoDbUpdateItem(Box<UpdateItemError>),
     #[error("FileSystem: {0}")]
     FileSystem(std::io::Error),
+    #[error("GitHub: {0}")]
+    GitHub(String),
     #[error("InternalServer: {0}")]
     InternalServer(String),
     #[error("InvalidMessage: {0}")]

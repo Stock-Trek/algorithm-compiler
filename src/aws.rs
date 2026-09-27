@@ -1,7 +1,9 @@
 use crate::{
     config::Config,
     dynamodb::{DynamoDb, DynamoDbDatumRef, DynamoDbLock},
+    error::ACResult,
     fenced::FencedS3,
+    github::GitHub,
     s3::S3,
 };
 use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
@@ -12,10 +14,11 @@ pub struct Aws {
     pub config: Config,
     pub dynamodb: DynamoDb,
     pub s3: S3,
+    pub github: GitHub,
 }
 
 impl Aws {
-    pub async fn new(config: Config) -> Self {
+    pub async fn new(config: Config) -> ACResult<Self> {
         let timeout_config = TimeoutConfig::builder()
             .connect_timeout(config.timeouts.aws_connect)
             .operation_timeout(config.timeouts.aws_operation)
@@ -25,7 +28,7 @@ impl Aws {
             .timeout_config(timeout_config)
             .load()
             .await;
-        Self {
+        Ok(Self {
             config,
             dynamodb: DynamoDb {
                 client: DynamoDbClient::new(&sdk_config),
@@ -34,7 +37,8 @@ impl Aws {
                 client: S3Client::new(&sdk_config),
                 operation_timeout,
             },
-        }
+            github: GitHub::new()?,
+        })
     }
 
     pub fn fenced_s3<'a>(

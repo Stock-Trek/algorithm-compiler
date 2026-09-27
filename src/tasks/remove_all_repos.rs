@@ -1,0 +1,44 @@
+use crate::{
+    aws::Aws,
+    dto::sqs_event::SqsRepoId,
+    error::ACResult,
+    files::Files,
+    tasks::{remove_repos::RemoveReposTask, task::TaskTrait},
+};
+use async_trait::async_trait;
+use std::{collections::BTreeSet, time::SystemTime};
+
+pub struct RemoveAllReposTask {
+    account_id: String,
+}
+
+impl RemoveAllReposTask {
+    pub fn new(account_id: String) -> Self {
+        Self { account_id }
+    }
+}
+
+#[async_trait]
+impl TaskTrait for RemoveAllReposTask {
+    async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
+        let prefix = format!("{}/", Files::sanitize_path(&self.account_id)?);
+        let keys = aws
+            .s3
+            .list_keys_with_prefix(&aws.config.s3_bucket_commit_artifacts, &prefix)
+            .await?;
+        let repo_ids: BTreeSet<String> = keys
+            .iter()
+            .filter_map(|key| key.strip_prefix(&prefix))
+            .filter_map(|path| path.split_once('/').map(|(repo, _)| repo.to_string()))
+            .collect();
+        let ids = repo_ids
+            .into_iter()
+            .map(|repo_id| SqsRepoId {
+                account_id: self.account_id.clone(),
+                repo_id,
+                clone_url: String::new(),
+            })
+            .collect();
+        RemoveReposTask::new(ids).handle(aws, deadline).await
+    }
+}
