@@ -1,7 +1,7 @@
 use crate::{
     aws::Aws,
     constants::S3_NAME_FILE,
-    dto::sqs_event::{GitProvider, SqsRepoId},
+    dto::sqs_event::GitSource,
     error::{ACError, ACResult},
     files::Files,
     s3::S3ObjectRef,
@@ -12,8 +12,8 @@ use serde::Serialize;
 use std::time::SystemTime;
 
 pub struct RenameTask {
-    provider: GitProvider,
-    id: SqsRepoId,
+    source: GitSource,
+    repo_id: String,
 }
 
 #[derive(Serialize)]
@@ -23,15 +23,15 @@ struct RenameBlob {
 }
 
 impl RenameTask {
-    pub fn new(provider: GitProvider, id: SqsRepoId) -> Self {
-        Self { provider, id }
+    pub fn new(source: GitSource, repo_id: String) -> Self {
+        Self { source, repo_id }
     }
 }
 
 #[async_trait]
 impl TaskTrait for RenameTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let repository = self.provider.repo(aws, self.id.repo_number()?).await?;
+        let repository = self.source.repo(aws, self.id.repo_number()?).await?;
         let refs = RepoRefs::new(&aws.config, &self.id)?;
         let key = format!("{}{S3_NAME_FILE}", RepoRefs::prefix(&self.id)?);
         let bucket = refs.repo_ref.bucket.clone();

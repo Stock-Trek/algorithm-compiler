@@ -4,7 +4,7 @@ use crate::{
     constants::{S3_COMPILE_OUTPUT_FILE, S3_COMPILE_RESULT_FILE},
     dto::{
         compile_result::{CompileResult, CompileStatus},
-        sqs_event::{GitProvider, SqsRepoId},
+        sqs_event::GitSource,
     },
     error::{ACError, ACResult},
     fenced::FencedS3,
@@ -17,22 +17,22 @@ use async_trait::async_trait;
 use std::{path::Path, time::SystemTime};
 
 pub struct CommitTask {
-    provider: GitProvider,
-    id: SqsRepoId,
+    source: GitSource,
+    repo_id: String,
     branch_name: String,
     commit_hash: String,
 }
 
 impl CommitTask {
     pub fn new(
-        provider: GitProvider,
-        id: SqsRepoId,
+        source: GitSource,
+        repo_id: String,
         branch_name: String,
         commit_hash: String,
     ) -> Self {
         Self {
-            provider,
-            id,
+            source,
+            repo_id,
             branch_name,
             commit_hash,
         }
@@ -131,12 +131,12 @@ impl CommitTask {
 impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let clone_url = self
-            .provider
-            .repo(aws, self.id.repo_number()?)
+            .source
+            .repo(aws, self.repo_id.repo_number()?)
             .await?
             .clone_url;
         let ref_name = GitRepo::stock_trek_ref_name(&self.branch_name, &self.commit_hash);
-        let refs = RepoRefs::new(&aws.config, &self.id)?;
+        let refs = RepoRefs::new(&aws.config, &self.repo_id)?;
         let refs_ref = &refs;
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {

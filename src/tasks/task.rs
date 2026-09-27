@@ -45,33 +45,31 @@ impl TaskTrait for Task {
 
 impl From<SqsMessage> for Task {
     fn from(value: SqsMessage) -> Self {
-        let SqsMessage { detail, provider } = value;
+        let SqsMessage { source, detail } = value;
         match detail {
-            SqsDetail::AddAllRepos { account_id } => {
-                Self::AddAllRepos(AddAllReposTask::new(provider, account_id))
+            SqsDetail::AddAllRepos => Self::AddAllRepos(AddAllReposTask::new(source)),
+            SqsDetail::RemoveAllRepos => Self::RemoveAllRepos(RemoveAllReposTask::new(source)),
+            SqsDetail::AddRepos { repo_ids } => Self::AddRepos(AddReposTask::new(source, repo_ids)),
+            SqsDetail::RemoveRepos { repo_ids } => {
+                Self::RemoveRepos(RemoveReposTask::new(source, repo_ids))
             }
-            SqsDetail::RemoveAllRepos { account_id } => {
-                Self::RemoveAllRepos(RemoveAllReposTask::new(account_id))
-            }
-            SqsDetail::AddRepos { ids } => Self::AddRepos(AddReposTask::new(provider, ids)),
-            SqsDetail::RemoveRepos { ids } => Self::RemoveRepos(RemoveReposTask::new(ids)),
             SqsDetail::AddRef {
-                id,
+                repo_id,
                 ref_name,
                 ref_type,
-            } => Self::AddRef(AddRefTask::new(id, ref_name, ref_type)),
+            } => Self::AddRef(AddRefTask::new(source, repo_id, ref_name, ref_type)),
             SqsDetail::DeleteRef {
-                id,
+                repo_id,
                 ref_name,
                 ref_type,
-            } => Self::DeleteRef(DeleteRefTask::new(id, ref_name, ref_type)),
-            SqsDetail::Rename { id } => Self::Rename(RenameTask::new(provider, id)),
+            } => Self::DeleteRef(DeleteRefTask::new(source, repo_id, ref_name, ref_type)),
+            SqsDetail::Rename { repo_id } => Self::Rename(RenameTask::new(source, repo_id)),
             SqsDetail::Commit {
-                id,
+                repo_id,
                 branch_name,
                 commit_hash,
                 ..
-            } => Self::Commit(CommitTask::new(provider, id, branch_name, commit_hash)),
+            } => Self::Commit(CommitTask::new(source, repo_id, branch_name, commit_hash)),
         }
     }
 }

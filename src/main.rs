@@ -21,8 +21,8 @@ mod files;
 mod git_repo;
 mod github;
 mod program;
-mod provider;
 mod s3;
+mod source;
 mod tasks;
 mod timeouts;
 

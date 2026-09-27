@@ -1,7 +1,7 @@
 use crate::{
     archive::Archive,
     aws::Aws,
-    dto::sqs_event::{SqsRefType, SqsRepoId},
+    dto::sqs_event::{GitSource, SqsRefType},
     error::ACResult,
     files::Files,
     git_repo::GitRepo,
@@ -12,15 +12,17 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 
 pub struct DeleteRefTask {
-    id: SqsRepoId,
+    source: GitSource,
+    repo_id: String,
     ref_name: String,
     ref_type: SqsRefType,
 }
 
 impl DeleteRefTask {
-    pub fn new(id: SqsRepoId, ref_name: String, ref_type: SqsRefType) -> Self {
+    pub fn new(source: GitSource, repo_id: String, ref_name: String, ref_type: SqsRefType) -> Self {
         Self {
-            id,
+            source,
+            repo_id,
             ref_name,
             ref_type,
         }
@@ -30,7 +32,7 @@ impl DeleteRefTask {
 #[async_trait]
 impl TaskTrait for DeleteRefTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let refs = RepoRefs::new(&aws.config, &self.id)?;
+        let refs = RepoRefs::new(&aws.config, &self.repo_id)?;
         let repo = GitRepo::new(aws.config.timeouts);
         let refs_ref = &refs;
         let ref_name = self.ref_name.as_str();

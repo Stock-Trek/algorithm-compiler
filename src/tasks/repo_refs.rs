@@ -3,7 +3,7 @@ use crate::{
     aws::Aws,
     config::Config,
     constants::{DYNAMODB_LOCK_KEY_ATTRIBUTE, S3_REPOS_PREFIX},
-    dto::sqs_event::SqsRepoId,
+    dto::sqs_event::GitSource,
     dynamodb::{DynamoDbDatumRef, DynamoDbLock},
     error::ACResult,
     files::Files,
@@ -18,9 +18,9 @@ pub struct RepoRefs {
 }
 
 impl RepoRefs {
-    pub fn new(config: &Config, ids: &SqsRepoId) -> ACResult<Self> {
-        let account = Files::sanitize_path(&ids.account_id)?;
-        let repo = Files::sanitize_path(&ids.repo_id)?;
+    pub fn new(config: &Config, source: GitSource) -> ACResult<Self> {
+        let account = Files::sanitize_path(&source.account_id)?;
+        let repo = Files::sanitize_path(&source.repo_id)?;
         Ok(Self {
             lock_ref: DynamoDbDatumRef {
                 table: config.dynamodb_lock_table.clone(),
@@ -34,7 +34,7 @@ impl RepoRefs {
         })
     }
 
-    pub fn prefix(id: &SqsRepoId) -> ACResult<String> {
+    pub fn prefix(repo_id: &str) -> ACResult<String> {
         let account = Files::sanitize_path(&id.account_id)?;
         let repo = Files::sanitize_path(&id.repo_id)?;
         Ok(format!("{account}/{repo}/"))

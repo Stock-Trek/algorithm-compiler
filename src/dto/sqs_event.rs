@@ -1,6 +1,5 @@
-use crate::error::{ACError, ACResult};
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumIter};
+use strum::Display;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SqsEvent {
@@ -37,58 +36,40 @@ impl SqsEventResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SqsMessage {
-    pub provider: GitProvider,
+    pub source: GitSource,
     pub detail: SqsDetail,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SqsDetail {
-    AddAllRepos {
-        account_id: String,
-    },
-    RemoveAllRepos {
-        account_id: String,
-    },
+    AddAllRepos,
+    RemoveAllRepos,
     AddRepos {
-        ids: Vec<SqsRepoId>,
+        repo_ids: Vec<String>,
     },
     RemoveRepos {
-        ids: Vec<SqsRepoId>,
+        repo_ids: Vec<String>,
     },
     Rename {
-        id: SqsRepoId,
+        repo_id: String,
     },
     AddRef {
-        id: SqsRepoId,
+        repo_id: String,
         ref_name: String,
         ref_type: SqsRefType,
     },
     DeleteRef {
-        id: SqsRepoId,
+        repo_id: String,
         ref_name: String,
         ref_type: SqsRefType,
     },
     Commit {
-        id: SqsRepoId,
+        repo_id: String,
         branch_name: String,
         commit_hash: String,
         forced: bool,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct SqsRepoId {
-    pub account_id: String,
-    pub repo_id: String,
-}
-
-impl SqsRepoId {
-    pub fn repo_number(&self) -> ACResult<u64> {
-        self.repo_id.parse().map_err(|error| {
-            ACError::InvalidMessage(format!("Invalid repository id {:?}: {error}", self.repo_id))
-        })
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -98,9 +79,9 @@ pub enum SqsRefType {
     Tag,
 }
 
-#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, EnumIter, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum GitProvider {
+pub enum GitSource {
     GitHub {
         delivery_id: String,
         installation_id: u64,

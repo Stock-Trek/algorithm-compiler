@@ -1,4 +1,4 @@
-use crate::{aws::Aws, dto::sqs_event::GitProvider, error::ACResult, github::GitHubRepo};
+use crate::{aws::Aws, dto::sqs_event::GitSource, error::ACResult, github::GitHubRepo};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Repo {
@@ -19,7 +19,7 @@ impl From<GitHubRepo> for Repo {
     }
 }
 
-impl GitProvider {
+impl GitSource {
     pub async fn repos(&self, aws: &Aws) -> ACResult<Vec<Repo>> {
         match self {
             Self::GitHub {

@@ -1,6 +1,6 @@
 use crate::{
     aws::Aws,
-    dto::sqs_event::{GitProvider, SqsRepoId},
+    dto::sqs_event::GitSource,
     error::ACResult,
     tasks::{add_repos::AddReposTask, task::TaskTrait},
 };
@@ -8,16 +8,12 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 
 pub struct AddAllReposTask {
-    provider: GitProvider,
-    account_id: String,
+    source: GitSource,
 }
 
 impl AddAllReposTask {
-    pub fn new(provider: GitProvider, account_id: String) -> Self {
-        Self {
-            provider,
-            account_id,
-        }
+    pub fn new(source: GitSource) -> Self {
+        Self { source }
     }
 }
 
@@ -25,16 +21,13 @@ impl AddAllReposTask {
 impl TaskTrait for AddAllReposTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let ids = self
-            .provider
+            .source
             .repos(aws)
             .await?
             .into_iter()
-            .map(|repo| SqsRepoId {
-                account_id: self.account_id.clone(),
-                repo_id: repo.id.to_string(),
-            })
+            .map(|repo| repo.id.to_string())
             .collect();
-        AddReposTask::new(self.provider.clone(), ids)
+        AddReposTask::new(self.source.clone(), ids)
             .handle(aws, deadline)
             .await
     }
