@@ -51,7 +51,7 @@ impl CommitTask {
         s3: &FencedS3<'_>,
         files: &Files,
     ) -> ACResult<()> {
-        let prefix = self.prefix(&account_id)?;
+        let prefix = self.prefix(account_id)?;
         Archive::create(&files.algorithms, &files.algorithms_archive)?;
         self.upload(
             bucket,

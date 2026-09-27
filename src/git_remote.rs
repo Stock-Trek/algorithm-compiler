@@ -6,14 +6,43 @@ use crate::{
 };
 use jsonwebtoken::EncodingKey;
 use octocrab::{Octocrab, models::InstallationId};
+use serde::{Deserialize, Serialize};
 use std::{path::Path, time::SystemTime};
 
 const GITHUB_APP_ID_ENV: &str = "GITHUB_APP_ID";
 const GITHUB_APP_PRIVATE_KEY_ENV: &str = "GITHUB_APP_PRIVATE_KEY";
+const GITHUB_PER_PAGE: u32 = 100;
+
+#[derive(Debug, Clone, Deserialize)]
+struct GitHubRepo {
+    id: u64,
+    name: String,
+    clone_url: String,
+    owner: GitHubOwner,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct GitHubOwner {
+    login: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct InstallationRepositoriesResponse {
+    repositories: Vec<GitHubRepo>,
+}
+
+#[derive(Debug, Serialize)]
+struct RepositoriesParams {
+    per_page: u32,
+    page: u32,
+}
 
 #[derive(Clone)]
 pub enum GitRemote {
-    GitHub { client: Octocrab },
+    GitHub {
+        client: Octocrab,
+        installation_id: u64,
+    },
 }
 
 impl TryFrom<&GitSource> for GitRemote {
@@ -44,7 +73,10 @@ impl TryFrom<&GitSource> for GitRemote {
                             "failed to create client for installation {installation_id}: {error}"
                         ))
                     })?;
-                Ok(GitRemote::GitHub { client })
+                Ok(GitRemote::GitHub {
+                    client,
+                    installation_id: *installation_id,
+                })
             }
         }
     }
@@ -52,15 +84,25 @@ impl TryFrom<&GitSource> for GitRemote {
 
 impl GitRemote {
     pub async fn account_id(&self) -> ACResult<String> {
-        Ok("".into())
+        match self {
+            GitRemote::GitHub {
+                installation_id, ..
+            } => Ok(installation_id.to_string()),
+        }
     }
 
     pub async fn account_repo_ids(&self) -> ACResult<Vec<String>> {
-        Ok(vec![])
+        Ok(self
+            .repos()
+            .await?
+            .into_iter()
+            .map(|repo| repo.id.to_string())
+            .collect())
     }
 
-    pub async fn account_repo_name(&self) -> ACResult<(String, String)> {
-        Ok(("".into(), "".into()))
+    pub async fn account_repo_name(&self, repo_id: &str) -> ACResult<(String, String)> {
+        let repo = self.repo(repo_id).await?;
+        Ok((repo.owner.login, repo.name))
     }
 
     pub async fn clone_bare_repo(
@@ -70,19 +112,64 @@ impl GitRemote {
         repo_dir: &str,
         deadline: SystemTime,
     ) -> ACResult<()> {
-        match self {
-            GitRemote::GitHub { .. } => {
-                let clone_url = format!("TODO: use {repo_id}");
-                GitLocal::exec_git(
-                    timeouts,
-                    Path::new(repo_dir),
-                    &["clone", "--bare", &clone_url, repo_dir],
-                    deadline,
+        let repo = self.repo(repo_id).await?;
+        GitLocal::exec_git(
+            timeouts,
+            Path::new(repo_dir),
+            &["clone", "--bare", &repo.clone_url, repo_dir],
+            deadline,
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn repos(&self) -> ACResult<Vec<GitHubRepo>> {
+        let GitRemote::GitHub {
+            client,
+            installation_id,
+        } = self;
+        let mut repos = Vec::new();
+        let mut page = 1;
+        loop {
+            let params = RepositoriesParams {
+                per_page: GITHUB_PER_PAGE,
+                page,
+            };
+            let response = client
+                .get::<InstallationRepositoriesResponse, _, _>(
+                    "/installation/repositories",
+                    Some(&params),
                 )
-                .await?;
-                Ok(())
+                .await
+                .map_err(|error| {
+                    ACError::GitHub(format!(
+                        "failed to list repositories for installation {installation_id}: {error}"
+                    ))
+                })?;
+            let received = response.repositories.len();
+            repos.extend(response.repositories);
+            if received < GITHUB_PER_PAGE as usize {
+                break;
             }
+            page += 1;
         }
+        Ok(repos)
+    }
+
+    async fn repo(&self, repo_id: &str) -> ACResult<GitHubRepo> {
+        let repo_id = parse_repo_id(repo_id)?;
+        let GitRemote::GitHub {
+            client,
+            installation_id,
+        } = self;
+        client
+            .get::<GitHubRepo, _, _>(format!("/repositories/{repo_id}"), None::<&()>)
+            .await
+            .map_err(|error| {
+                ACError::GitHub(format!(
+                    "failed to get repository {repo_id} for installation {installation_id}: {error}"
+                ))
+            })
     }
 }
 
@@ -100,4 +187,10 @@ impl GitRemote {
             }
         }
     }
+}
+
+fn parse_repo_id(repo_id: &str) -> ACResult<u64> {
+    repo_id
+        .parse()
+        .map_err(|_| ACError::InvalidMessage(format!("Invalid repo id: {repo_id:?}")))
 }

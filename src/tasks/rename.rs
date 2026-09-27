@@ -35,7 +35,7 @@ impl RenameTask {
 impl TaskTrait for RenameTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let account_id = self.git_remote.account_id().await?;
-        let (account_name, repo_name) = self.git_remote.account_repo_name().await?;
+        let (account_name, repo_name) = self.git_remote.account_repo_name(&self.repo_id).await?;
         let key = format!(
             "{}{S3_NAME_FILE}",
             RepoRefs::prefix(&account_id, &self.repo_id)?
