@@ -4,7 +4,7 @@ use crate::{
     constants::{S3_COMPILE_OUTPUT_FILE, S3_COMPILE_RESULT_FILE},
     dto::{
         compile_result::{CompileResult, CompileStatus},
-        sqs_event::SqsRepoId,
+        sqs_event::{GitProvider, SqsRepoId},
     },
     error::{ACError, ACResult},
     fenced::FencedS3,
@@ -17,14 +17,21 @@ use async_trait::async_trait;
 use std::{path::Path, time::SystemTime};
 
 pub struct CommitTask {
+    provider: GitProvider,
     id: SqsRepoId,
     branch_name: String,
     commit_hash: String,
 }
 
 impl CommitTask {
-    pub fn new(id: SqsRepoId, branch_name: String, commit_hash: String) -> Self {
+    pub fn new(
+        provider: GitProvider,
+        id: SqsRepoId,
+        branch_name: String,
+        commit_hash: String,
+    ) -> Self {
         Self {
+            provider,
             id,
             branch_name,
             commit_hash,
@@ -123,17 +130,27 @@ impl CommitTask {
 #[async_trait]
 impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
+        let clone_url = "TODO";
+        let ref_name = "TODO";
+        let commit_hash = "TODO";
         let refs = RepoRefs::new(&aws.config, &self.id)?;
-        let repo = GitRepo::new(
-            &self.id.clone_url,
-            Some((&self.branch_name, &self.commit_hash)),
-            aws.config.timeouts,
-        );
+        let repo = GitRepo::new(aws.config.timeouts);
         let files = Files::new();
         let refs_ref = &refs;
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {
-                refs_ref.sync(aws, files, &repo, &lock, deadline).await?;
+                refs_ref
+                    .sync(
+                        clone_url,
+                        ref_name,
+                        commit_hash,
+                        aws,
+                        files,
+                        &repo,
+                        &lock,
+                        deadline,
+                    )
+                    .await?;
                 files
                     .copy_algorithms(&self.commit_hash, &aws.config.timeouts, deadline)
                     .await?;

@@ -5,6 +5,6 @@ pub mod commit;
 pub mod delete_ref;
 pub mod remove_all_repos;
 pub mod remove_repos;
-pub mod rename_repo;
+pub mod rename;
 pub mod repo_refs;
 pub mod task;

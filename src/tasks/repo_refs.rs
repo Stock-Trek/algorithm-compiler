@@ -42,6 +42,9 @@ impl RepoRefs {
 
     pub async fn sync(
         &self,
+        clone_url: &str,
+        ref_name: &str,
+        commit_hash: &str,
         aws: &Aws,
         files: &Files,
         repo: &GitRepo,
@@ -55,10 +58,11 @@ impl RepoRefs {
                 repo.fetch(&files.repo, deadline).await?;
             }
             DownloadOutcome::NotFound => {
-                repo.clone_bare(&files.repo, deadline).await?;
+                repo.clone_bare(clone_url, &files.repo, deadline).await?;
             }
         }
-        repo.create_ref(&files.repo, deadline).await?;
+        repo.create_ref(ref_name, commit_hash, &files.repo, deadline)
+            .await?;
         Archive::create(&files.repo, &files.archive)?;
         aws.fenced_s3(&self.lock_ref, lock)
             .upload(&self.repo_ref, &files.archive)

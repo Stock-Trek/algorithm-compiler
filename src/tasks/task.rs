@@ -5,7 +5,7 @@ use crate::{
     tasks::{
         add_all_repos::AddAllReposTask, add_ref::AddRefTask, add_repos::AddReposTask,
         commit::CommitTask, delete_ref::DeleteRefTask, remove_all_repos::RemoveAllReposTask,
-        remove_repos::RemoveReposTask, rename_repo::RenameRepoTask,
+        remove_repos::RemoveReposTask, rename::RenameTask,
     },
 };
 use async_trait::async_trait;
@@ -16,7 +16,7 @@ pub enum Task {
     RemoveAllRepos(RemoveAllReposTask),
     AddRepos(AddReposTask),
     RemoveRepos(RemoveReposTask),
-    RenameRepo(RenameRepoTask),
+    Rename(RenameTask),
     AddRef(AddRefTask),
     DeleteRef(DeleteRefTask),
     Commit(CommitTask),
@@ -37,7 +37,7 @@ impl TaskTrait for Task {
             Self::RemoveRepos(task) => task.handle(aws, deadline).await,
             Self::AddRef(task) => task.handle(aws, deadline).await,
             Self::DeleteRef(task) => task.handle(aws, deadline).await,
-            Self::RenameRepo(task) => task.handle(aws, deadline).await,
+            Self::Rename(task) => task.handle(aws, deadline).await,
             Self::Commit(task) => task.handle(aws, deadline).await,
         }
     }
@@ -45,37 +45,35 @@ impl TaskTrait for Task {
 
 impl From<SqsMessage> for Task {
     fn from(value: SqsMessage) -> Self {
-        let SqsMessage { detail, .. } = value;
+        let SqsMessage { detail, provider } = value;
         match detail {
-            SqsDetail::AddAllRepos {
-                installation_id,
-                account_id,
-                ..
-            } => Self::AddAllRepos(AddAllReposTask::new(account_id, installation_id)),
-            SqsDetail::RemoveAllRepos { account_id, .. } => {
-                Self::RemoveAllRepos(RemoveAllReposTask::new(account_id))
+            SqsDetail::AddAllRepos { account_id } => {
+                Self::AddAllRepos(AddAllReposTask::new(provider, account_id))
             }
-            SqsDetail::AddRepos { ids, .. } => Self::AddRepos(AddReposTask::new(ids)),
-            SqsDetail::RemoveRepos { ids, .. } => Self::RemoveRepos(RemoveReposTask::new(ids)),
+            SqsDetail::RemoveAllRepos { account_id } => {
+                Self::RemoveAllRepos(RemoveAllReposTask::new(provider, account_id))
+            }
+            SqsDetail::AddRepos { ids } => Self::AddRepos(AddReposTask::new(provider, ids)),
+            SqsDetail::RemoveRepos { ids } => {
+                Self::RemoveRepos(RemoveReposTask::new(provider, ids))
+            }
             SqsDetail::AddRef {
                 id,
                 ref_name,
                 ref_type,
-                ..
-            } => Self::AddRef(AddRefTask::new(id, ref_name, ref_type)),
+            } => Self::AddRef(AddRefTask::new(provider, id, ref_name, ref_type)),
             SqsDetail::DeleteRef {
                 id,
                 ref_name,
                 ref_type,
-                ..
-            } => Self::DeleteRef(DeleteRefTask::new(id, ref_name, ref_type)),
-            SqsDetail::RenameRepo { id, .. } => Self::RenameRepo(RenameRepoTask::new(id)),
+            } => Self::DeleteRef(DeleteRefTask::new(provider, id, ref_name, ref_type)),
+            SqsDetail::Rename { id } => Self::Rename(RenameTask::new(provider, id)),
             SqsDetail::Commit {
                 id,
                 branch_name,
                 commit_hash,
                 ..
-            } => Self::Commit(CommitTask::new(id, branch_name, commit_hash)),
+            } => Self::Commit(CommitTask::new(provider, id, branch_name, commit_hash)),
         }
     }
 }

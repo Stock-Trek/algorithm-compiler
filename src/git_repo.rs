@@ -7,8 +7,6 @@ const STOCK_TREK_REF_PREFIX: &str = "refs/stock-trek";
 
 #[derive(Debug, Clone)]
 pub struct GitRepo {
-    pub clone_url: String,
-    pub commit: Option<GitCommit>,
     timeouts: Timeouts,
 }
 
@@ -19,25 +17,19 @@ pub struct GitCommit {
 }
 
 impl GitRepo {
-    pub fn new(clone_url: &str, commit: Option<(&str, &str)>, timeouts: Timeouts) -> Self {
-        Self {
-            clone_url: clone_url.into(),
-            commit: commit.map(|(branch_name, commit_hash)| GitCommit {
-                ref_name: Self::stock_trek_ref_name(branch_name, commit_hash),
-                commit_hash: commit_hash.to_string(),
-            }),
-            timeouts,
-        }
+    pub fn new(timeouts: Timeouts) -> Self {
+        Self { timeouts }
     }
 
-    pub async fn clone_bare(&self, path: &Path, deadline: SystemTime) -> ACResult<String> {
+    pub async fn clone_bare(
+        &self,
+        clone_url: &str,
+        path: &Path,
+        deadline: SystemTime,
+    ) -> ACResult<String> {
         let destination = Files::path_str(path)?;
-        self.exec_git(
-            path,
-            &["clone", "--bare", &self.clone_url, destination],
-            deadline,
-        )
-        .await
+        self.exec_git(path, &["clone", "--bare", clone_url, destination], deadline)
+            .await
     }
 
     pub async fn fetch(&self, path: &Path, deadline: SystemTime) -> ACResult<String> {
@@ -45,27 +37,15 @@ impl GitRepo {
             .await
     }
 
-    pub async fn set_remote(&self, path: &Path, deadline: SystemTime) -> ACResult<String> {
-        self.exec_git(
-            path,
-            &["remote", "set-url", "origin", &self.clone_url],
-            deadline,
-        )
-        .await
-    }
-
-    pub async fn create_ref(&self, path: &Path, deadline: SystemTime) -> ACResult<String> {
-        match &self.commit {
-            Some(commit) => {
-                self.exec_git(
-                    path,
-                    &["update-ref", "--", &commit.ref_name, &commit.commit_hash],
-                    deadline,
-                )
-                .await
-            }
-            None => Ok(String::new()),
-        }
+    pub async fn create_ref(
+        &self,
+        ref_name: &str,
+        commit_hash: &str,
+        path: &Path,
+        deadline: SystemTime,
+    ) -> ACResult<String> {
+        self.exec_git(path, &["update-ref", "--", ref_name, commit_hash], deadline)
+            .await
     }
 
     pub async fn add_ref(

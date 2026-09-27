@@ -1,7 +1,7 @@
 use crate::{
     archive::Archive,
     aws::Aws,
-    dto::sqs_event::{SqsRefType, SqsRepoId},
+    dto::sqs_event::{GitProvider, SqsRefType, SqsRepoId},
     error::ACResult,
     files::Files,
     git_repo::GitRepo,
@@ -12,14 +12,21 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 
 pub struct DeleteRefTask {
+    provider: GitProvider,
     id: SqsRepoId,
     ref_name: String,
     ref_type: SqsRefType,
 }
 
 impl DeleteRefTask {
-    pub fn new(id: SqsRepoId, ref_name: String, ref_type: SqsRefType) -> Self {
+    pub fn new(
+        provider: GitProvider,
+        id: SqsRepoId,
+        ref_name: String,
+        ref_type: SqsRefType,
+    ) -> Self {
         Self {
+            provider,
             id,
             ref_name,
             ref_type,
@@ -31,13 +38,13 @@ impl DeleteRefTask {
 impl TaskTrait for DeleteRefTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let refs = RepoRefs::new(&aws.config, &self.id)?;
-        let repo = GitRepo::new(&self.id.clone_url, None, aws.config.timeouts);
+        let repo = GitRepo::new(aws.config.timeouts);
         let refs_ref = &refs;
         let ref_name = self.ref_name.as_str();
         let ref_type = self.ref_type;
+        let files = Files::new();
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {
-                let files = Files::new();
                 files.clean()?;
                 if aws.s3.download(&refs_ref.repo_ref, &files.archive).await?
                     == DownloadOutcome::NotFound
