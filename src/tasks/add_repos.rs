@@ -22,11 +22,7 @@ impl AddReposTask {
 impl TaskTrait for AddReposTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         for id in &self.ids {
-            let clone_url = aws
-                .github
-                .repo(self.provider.installation_id(), id.repo_number()?)
-                .await?
-                .clone_url;
+            let clone_url = self.provider.repo(aws, id.repo_number()?).await?.clone_url;
             let refs = RepoRefs::new(&aws.config, id)?;
             let refs_ref = &refs;
             aws.dynamodb

@@ -106,13 +106,3 @@ pub enum GitProvider {
         installation_id: u64,
     },
 }
-
-impl GitProvider {
-    pub fn installation_id(&self) -> u64 {
-        match self {
-            Self::GitHub {
-                installation_id, ..
-            } => *installation_id,
-        }
-    }
-}

@@ -24,9 +24,9 @@ impl AddAllReposTask {
 #[async_trait]
 impl TaskTrait for AddAllReposTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let ids = aws
-            .github
-            .repos(self.provider.installation_id())
+        let ids = self
+            .provider
+            .repos(aws)
             .await?
             .into_iter()
             .map(|repo| SqsRepoId {

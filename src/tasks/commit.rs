@@ -130,9 +130,9 @@ impl CommitTask {
 #[async_trait]
 impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let clone_url = aws
-            .github
-            .repo(self.provider.installation_id(), self.id.repo_number()?)
+        let clone_url = self
+            .provider
+            .repo(aws, self.id.repo_number()?)
             .await?
             .clone_url;
         let ref_name = GitRepo::stock_trek_ref_name(&self.branch_name, &self.commit_hash);
