@@ -57,29 +57,28 @@ impl From<GitHubRepo> for Repo {
     }
 }
 
-pub struct GitHub {
-    client: Octocrab,
-}
-
-impl GitHub {
-    pub fn new() -> ACResult<Self> {
-        let app_id = required(GITHUB_APP_ID_ENV)?;
-        let app_id: u64 = app_id
-            .parse()
-            .map_err(|error| ACError::Config(format!("{GITHUB_APP_ID_ENV} is invalid: {error}")))?;
-        let private_key = required(GITHUB_APP_PRIVATE_KEY_ENV)?.replace("\\n", "\n");
-        let key = EncodingKey::from_rsa_pem(private_key.as_bytes()).map_err(|error| {
-            ACError::Config(format!("{GITHUB_APP_PRIVATE_KEY_ENV} is invalid: {error}"))
-        })?;
-        let client = Octocrab::builder()
-            .app(app_id.into(), key)
-            .build()
-            .map_err(|error| ACError::GitHub(format!("failed to build GitHub client: {error}")))?;
-        Ok(Self { client })
+impl GitSource {
+    pub fn account_id(&self) -> String {
+        self.installation_id().to_string()
     }
 
-    async fn repos(&self, installation_id: u64) -> ACResult<Vec<GitHubRepo>> {
-        let client = self.installation(installation_id)?;
+    pub async fn account_repo_ids(&self) -> ACResult<Vec<String>> {
+        Ok(self
+            .repos()
+            .await?
+            .into_iter()
+            .map(|repo| repo.id.to_string())
+            .collect())
+    }
+
+    pub async fn repo(&self, repo_id: &str) -> ACResult<Repo> {
+        let repo_id = parse_repo_id(repo_id)?;
+        Ok(self.github_repo(repo_id).await?.into())
+    }
+
+    async fn repos(&self) -> ACResult<Vec<GitHubRepo>> {
+        let client = self.github_client()?;
+        let installation_id = self.installation_id();
         let mut repos = Vec::new();
         let mut page = 1;
         loop {
@@ -108,8 +107,9 @@ impl GitHub {
         Ok(repos)
     }
 
-    async fn repo(&self, installation_id: u64, repo_id: u64) -> ACResult<GitHubRepo> {
-        let client = self.installation(installation_id)?;
+    async fn github_repo(&self, repo_id: u64) -> ACResult<GitHubRepo> {
+        let client = self.github_client()?;
+        let installation_id = self.installation_id();
         client
             .get::<GitHubRepo, _, _>(format!("/repositories/{repo_id}"), None::<&()>)
             .await
@@ -120,8 +120,21 @@ impl GitHub {
             })
     }
 
-    fn installation(&self, installation_id: u64) -> ACResult<Octocrab> {
-        self.client
+    fn github_client(&self) -> ACResult<Octocrab> {
+        let app_id = required(GITHUB_APP_ID_ENV)?;
+        let app_id: u64 = app_id
+            .parse()
+            .map_err(|error| ACError::Config(format!("{GITHUB_APP_ID_ENV} is invalid: {error}")))?;
+        let private_key = required(GITHUB_APP_PRIVATE_KEY_ENV)?.replace("\\n", "\n");
+        let key = EncodingKey::from_rsa_pem(private_key.as_bytes()).map_err(|error| {
+            ACError::Config(format!("{GITHUB_APP_PRIVATE_KEY_ENV} is invalid: {error}"))
+        })?;
+        let client = Octocrab::builder()
+            .app(app_id.into(), key)
+            .build()
+            .map_err(|error| ACError::GitHub(format!("failed to build GitHub client: {error}")))?;
+        let installation_id = self.installation_id();
+        client
             .installation(InstallationId::from(installation_id))
             .map_err(|error| {
                 ACError::GitHub(format!(
@@ -129,43 +142,12 @@ impl GitHub {
                 ))
             })
     }
-}
 
-impl GitSource {
-    pub fn account_id(&self) -> String {
+    fn installation_id(&self) -> u64 {
         match self {
             Self::GitHub {
                 installation_id, ..
-            } => installation_id.to_string(),
-        }
-    }
-
-    pub async fn account_repo_ids(&self) -> ACResult<Vec<String>> {
-        match self {
-            Self::GitHub {
-                installation_id, ..
-            } => Ok(GitHub {
-                client: Octocrab::default(),
-            }
-            .repos(*installation_id)
-            .await?
-            .into_iter()
-            .map(|repo| repo.id.to_string())
-            .collect()),
-        }
-    }
-
-    pub async fn repo(&self, repo_id: &str) -> ACResult<Repo> {
-        let repo_id = parse_repo_id(repo_id)?;
-        match self {
-            Self::GitHub {
-                installation_id, ..
-            } => Ok(GitHub {
-                client: Octocrab::default(),
-            }
-            .repo(*installation_id, repo_id)
-            .await?
-            .into()),
+            } => *installation_id,
         }
     }
 
