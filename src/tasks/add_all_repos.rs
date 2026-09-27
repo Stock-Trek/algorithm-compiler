@@ -9,14 +9,14 @@ use std::time::SystemTime;
 
 pub struct AddAllReposTask {
     account_id: String,
-    account_login: String,
+    installation_id: String,
 }
 
 impl AddAllReposTask {
-    pub fn new(account_id: String, account_login: String) -> Self {
+    pub fn new(account_id: String, installation_id: String) -> Self {
         Self {
             account_id,
-            account_login,
+            installation_id,
         }
     }
 }
@@ -26,7 +26,7 @@ impl TaskTrait for AddAllReposTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let ids = aws
             .github
-            .repos(&self.account_login)
+            .repos(&self.installation_id)
             .await?
             .into_iter()
             .map(|repo| SqsRepoId {

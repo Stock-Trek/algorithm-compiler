@@ -48,10 +48,10 @@ impl From<SqsMessage> for Task {
         let SqsMessage { detail, .. } = value;
         match detail {
             SqsDetail::AddAllRepos {
+                installation_id,
                 account_id,
-                account_login,
                 ..
-            } => Self::AddAllRepos(AddAllReposTask::new(account_id, account_login)),
+            } => Self::AddAllRepos(AddAllReposTask::new(account_id, installation_id)),
             SqsDetail::RemoveAllRepos { account_id, .. } => {
                 Self::RemoveAllRepos(RemoveAllReposTask::new(account_id))
             }
