@@ -18,9 +18,10 @@ mod dynamodb;
 mod error;
 mod fenced;
 mod files;
+mod git_local;
+mod git_remote;
 mod program;
 mod s3;
-mod source;
 mod tasks;
 mod timeouts;
 
@@ -80,7 +81,7 @@ impl Handler {
         let message: SqsMessage = serde_json::from_str(body).map_err(|error| {
             ACError::InvalidMessage(format!("Failed to deserialize SQS message: {error}"))
         })?;
-        let task: Task = message.into();
+        let task: Task = message.try_into()?;
         task.handle(&self.aws, deadline).await
     }
 }

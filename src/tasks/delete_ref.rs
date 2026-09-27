@@ -1,9 +1,11 @@
 use crate::{
     archive::Archive,
     aws::Aws,
-    dto::sqs_event::{GitSource, SqsRefType},
+    dto::sqs_event::SqsRefType,
     error::ACResult,
     files::Files,
+    git_local::GitLocal,
+    git_remote::GitRemote,
     s3::DownloadOutcome,
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
@@ -11,16 +13,21 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 
 pub struct DeleteRefTask {
-    source: GitSource,
+    git_remote: GitRemote,
     repo_id: String,
     ref_name: String,
     ref_type: SqsRefType,
 }
 
 impl DeleteRefTask {
-    pub fn new(source: GitSource, repo_id: String, ref_name: String, ref_type: SqsRefType) -> Self {
+    pub fn new(
+        git_remote: GitRemote,
+        repo_id: String,
+        ref_name: String,
+        ref_type: SqsRefType,
+    ) -> Self {
         Self {
-            source,
+            git_remote,
             repo_id,
             ref_name,
             ref_type,
@@ -31,8 +38,13 @@ impl DeleteRefTask {
 #[async_trait]
 impl TaskTrait for DeleteRefTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let refs = RepoRefs::new(&aws.config, self.source.clone(), &self.repo_id)?;
-        let source = &self.source;
+        let account_id = self.git_remote.account_id().await?;
+        let refs = RepoRefs::new(
+            &aws.config,
+            self.git_remote.clone(),
+            &account_id,
+            &self.repo_id,
+        )?;
         let refs_ref = &refs;
         let ref_name = self.ref_name.as_str();
         let ref_type = self.ref_type;
@@ -46,7 +58,7 @@ impl TaskTrait for DeleteRefTask {
                     return Ok(());
                 }
                 Archive::extract(&files.archive, &files.repo)?;
-                source
+                GitLocal
                     .delete_ref(
                         aws.config.timeouts,
                         &files.repo,

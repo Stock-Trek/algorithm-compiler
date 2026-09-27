@@ -3,10 +3,11 @@ use crate::{
     aws::Aws,
     config::Config,
     constants::{DYNAMODB_LOCK_KEY_ATTRIBUTE, S3_REPOS_PREFIX},
-    dto::sqs_event::GitSource,
     dynamodb::{DynamoDbDatumRef, DynamoDbLock},
     error::ACResult,
     files::Files,
+    git_local::GitLocal,
+    git_remote::GitRemote,
     s3::{DownloadOutcome, S3ObjectRef},
 };
 use std::time::SystemTime;
@@ -14,13 +15,18 @@ use std::time::SystemTime;
 pub struct RepoRefs {
     pub lock_ref: DynamoDbDatumRef,
     pub repo_ref: S3ObjectRef,
-    source: GitSource,
+    git_remote: GitRemote,
     repo_id: String,
 }
 
 impl RepoRefs {
-    pub fn new(config: &Config, source: GitSource, repo_id: &str) -> ACResult<Self> {
-        let account = Files::sanitize_path(&source.account_id())?;
+    pub fn new(
+        config: &Config,
+        git_remote: GitRemote,
+        account_id: &str,
+        repo_id: &str,
+    ) -> ACResult<Self> {
+        let account = Files::sanitize_path(account_id)?;
         let repo = Files::sanitize_path(repo_id)?;
         Ok(Self {
             lock_ref: DynamoDbDatumRef {
@@ -32,13 +38,13 @@ impl RepoRefs {
                 bucket: config.s3_bucket_commit_artifacts.clone(),
                 key: format!("{account}/{repo}/{S3_REPOS_PREFIX}/{repo}.tar.gz"),
             },
-            source,
+            git_remote,
             repo_id: repo_id.to_string(),
         })
     }
 
-    pub fn prefix(source: &GitSource, repo_id: &str) -> ACResult<String> {
-        let account = Files::sanitize_path(&source.account_id())?;
+    pub fn prefix(account_id: &str, repo_id: &str) -> ACResult<String> {
+        let account = Files::sanitize_path(account_id)?;
         let repo = Files::sanitize_path(repo_id)?;
         Ok(format!("{account}/{repo}/"))
     }
@@ -58,7 +64,7 @@ impl RepoRefs {
     ) -> ACResult<()> {
         self.prepare_repo(aws, deadline).await?;
         let files = Files::new();
-        self.source
+        GitLocal
             .create_ref(
                 aws.config.timeouts,
                 ref_name,
@@ -76,12 +82,12 @@ impl RepoRefs {
         match aws.s3.download(&self.repo_ref, &files.archive).await? {
             DownloadOutcome::Downloaded => {
                 Archive::extract(&files.archive, &files.repo)?;
-                self.source
+                GitLocal
                     .fetch(aws.config.timeouts, &files.repo, deadline)
                     .await?;
             }
             DownloadOutcome::NotFound => {
-                self.source
+                self.git_remote
                     .clone_bare_repo(
                         aws.config.timeouts,
                         &self.repo_id,

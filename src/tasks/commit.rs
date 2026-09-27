@@ -2,13 +2,12 @@ use crate::{
     archive::Archive,
     aws::Aws,
     constants::{S3_COMPILE_OUTPUT_FILE, S3_COMPILE_RESULT_FILE},
-    dto::{
-        compile_result::{CompileResult, CompileStatus},
-        sqs_event::GitSource,
-    },
+    dto::compile_result::{CompileResult, CompileStatus},
     error::{ACError, ACResult},
     fenced::FencedS3,
     files::{ALGORITHMS_ARCHIVE_FILE, Files},
+    git_local::GitLocal,
+    git_remote::GitRemote,
     s3::S3ObjectRef,
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
@@ -16,7 +15,7 @@ use async_trait::async_trait;
 use std::{path::Path, time::SystemTime};
 
 pub struct CommitTask {
-    source: GitSource,
+    git_remote: GitRemote,
     repo_id: String,
     branch_name: String,
     commit_hash: String,
@@ -24,21 +23,21 @@ pub struct CommitTask {
 
 impl CommitTask {
     pub fn new(
-        source: GitSource,
+        git_remote: GitRemote,
         repo_id: String,
         branch_name: String,
         commit_hash: String,
     ) -> Self {
         Self {
-            source,
+            git_remote,
             repo_id,
             branch_name,
             commit_hash,
         }
     }
 
-    fn prefix(&self) -> ACResult<String> {
-        let base = RepoRefs::prefix(&self.source, &self.repo_id)?;
+    fn prefix(&self, account_id: &str) -> ACResult<String> {
+        let base = RepoRefs::prefix(account_id, &self.repo_id)?;
         Ok(format!(
             "{base}{}",
             Files::sanitize_path(&self.commit_hash)?
@@ -47,11 +46,12 @@ impl CommitTask {
 
     async fn upload_artifacts(
         &self,
+        account_id: &str,
         bucket: &str,
         s3: &FencedS3<'_>,
         files: &Files,
     ) -> ACResult<()> {
-        let prefix = self.prefix()?;
+        let prefix = self.prefix(&account_id)?;
         Archive::create(&files.algorithms, &files.algorithms_archive)?;
         self.upload(
             bucket,
@@ -71,6 +71,7 @@ impl CommitTask {
 
     async fn upload_compile_output(
         &self,
+        account_id: &str,
         bucket: &str,
         s3: &FencedS3<'_>,
         compile_result: &CompileResult,
@@ -81,7 +82,7 @@ impl CommitTask {
         s3.upload_bytes(
             &S3ObjectRef {
                 bucket: bucket.into(),
-                key: format!("{}/{S3_COMPILE_RESULT_FILE}", self.prefix()?),
+                key: format!("{}/{S3_COMPILE_RESULT_FILE}", self.prefix(account_id)?),
             },
             body,
         )
@@ -90,6 +91,7 @@ impl CommitTask {
 
     async fn upload_raw_compile_output(
         &self,
+        account_id: &str,
         bucket: &str,
         s3: &FencedS3<'_>,
         files: &Files,
@@ -101,7 +103,7 @@ impl CommitTask {
         self.upload(
             bucket,
             s3,
-            &format!("{}/{S3_COMPILE_OUTPUT_FILE}", self.prefix()?),
+            &format!("{}/{S3_COMPILE_OUTPUT_FILE}", self.prefix(account_id)?),
             &path,
         )
         .await
@@ -128,8 +130,14 @@ impl CommitTask {
 #[async_trait]
 impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let ref_name = GitSource::stock_trek_ref_name(&self.branch_name, &self.commit_hash);
-        let refs = RepoRefs::new(&aws.config, self.source.clone(), &self.repo_id)?;
+        let account_id = self.git_remote.account_id().await?;
+        let ref_name = GitLocal::stock_trek_ref_name(&self.branch_name, &self.commit_hash);
+        let refs = RepoRefs::new(
+            &aws.config,
+            self.git_remote.clone(),
+            &account_id,
+            &self.repo_id,
+        )?;
         let refs_ref = &refs;
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {
@@ -143,13 +151,14 @@ impl TaskTrait for CommitTask {
                 let compile_result = files.compile(&aws.config.timeouts, deadline).await?;
                 let s3 = aws.fenced_s3(&refs_ref.lock_ref, &lock);
                 let bucket = &aws.config.s3_bucket_commit_artifacts;
-                self.upload_compile_output(bucket, &s3, &compile_result)
+                self.upload_compile_output(&account_id, bucket, &s3, &compile_result)
                     .await?;
                 if compile_result.result != CompileStatus::Success {
-                    self.upload_raw_compile_output(bucket, &s3, files).await?;
+                    self.upload_raw_compile_output(&account_id, bucket, &s3, files)
+                        .await?;
                     return Ok(());
                 }
-                self.upload_artifacts(bucket, &s3, files).await
+                self.upload_artifacts(&account_id, bucket, &s3, files).await
             })
             .await
     }

@@ -1,9 +1,9 @@
 use crate::{
     aws::Aws,
     constants::S3_NAME_FILE,
-    dto::sqs_event::GitSource,
     error::{ACError, ACResult},
     files::Files,
+    git_remote::GitRemote,
     s3::S3ObjectRef,
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
@@ -12,40 +12,51 @@ use serde::Serialize;
 use std::time::SystemTime;
 
 pub struct RenameTask {
-    source: GitSource,
+    git_remote: GitRemote,
     repo_id: String,
 }
 
 #[derive(Serialize)]
-struct RenameBlob {
+struct NameBlob {
     account: String,
     repo: String,
 }
 
 impl RenameTask {
-    pub fn new(source: GitSource, repo_id: String) -> Self {
-        Self { source, repo_id }
+    pub fn new(git_remote: GitRemote, repo_id: String) -> Self {
+        Self {
+            git_remote,
+            repo_id,
+        }
     }
 }
 
 #[async_trait]
 impl TaskTrait for RenameTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let repository = self.source.repo(&self.repo_id).await?;
-        let refs = RepoRefs::new(&aws.config, self.source.clone(), &self.repo_id)?;
+        let account_id = self.git_remote.account_id().await?;
+        let (account_name, repo_name) = self.git_remote.account_repo_name().await?;
         let key = format!(
             "{}{S3_NAME_FILE}",
-            RepoRefs::prefix(&self.source, &self.repo_id)?
+            RepoRefs::prefix(&account_id, &self.repo_id)?
         );
+        let refs = RepoRefs::new(
+            &aws.config,
+            self.git_remote.clone(),
+            &account_id,
+            &self.repo_id,
+        )?;
         let bucket = refs.repo_ref.bucket.clone();
-        let account = repository.owner;
-        let repo = repository.name;
         let refs_ref = &refs;
         let files = Files::new();
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {
                 files.clean()?;
-                let body = serde_json::to_vec(&RenameBlob { account, repo }).map_err(|error| {
+                let blob = NameBlob {
+                    account: account_name,
+                    repo: repo_name,
+                };
+                let body = serde_json::to_vec(&blob).map_err(|error| {
                     ACError::InternalServer(format!("Failed to serialize rename: {error}"))
                 })?;
                 aws.fenced_s3(&refs_ref.lock_ref, &lock)
