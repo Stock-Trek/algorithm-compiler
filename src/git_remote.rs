@@ -2,18 +2,26 @@ use crate::{
     dto::sqs_event::GitSource,
     error::{ACError, ACResult},
     git_local::GitLocal,
+    github::GitHub,
     timeouts::Timeouts,
 };
-use jsonwebtoken::EncodingKey;
-use octocrab::{Octocrab, models::InstallationId};
+use async_trait::async_trait;
 use std::{path::Path, time::SystemTime};
-
-const GITHUB_APP_ID_ENV: &str = "GITHUB_APP_ID";
-const GITHUB_APP_PRIVATE_KEY_ENV: &str = "GITHUB_APP_PRIVATE_KEY";
 
 #[derive(Clone)]
 pub enum GitRemote {
-    GitHub { client: Octocrab },
+    GitHub(GitHub),
+}
+
+#[async_trait]
+pub trait GitHost {
+    async fn account_id(&self) -> ACResult<String>;
+
+    async fn account_repo_ids(&self) -> ACResult<Vec<String>>;
+
+    async fn account_repo_name(&self, repo_id: &str) -> ACResult<(String, String)>;
+
+    async fn clone_url(&self, repo_id: &str) -> ACResult<String>;
 }
 
 impl TryFrom<&GitSource> for GitRemote {
@@ -23,44 +31,28 @@ impl TryFrom<&GitSource> for GitRemote {
         match value {
             GitSource::GitHub {
                 installation_id, ..
-            } => {
-                let app_id = Self::required(GITHUB_APP_ID_ENV)?;
-                let app_id: u64 = app_id.parse().map_err(|error| {
-                    ACError::Config(format!("{GITHUB_APP_ID_ENV} is invalid: {error}"))
-                })?;
-                let private_key = Self::required(GITHUB_APP_PRIVATE_KEY_ENV)?.replace("\\n", "\n");
-                let key = EncodingKey::from_rsa_pem(private_key.as_bytes()).map_err(|error| {
-                    ACError::Config(format!("{GITHUB_APP_PRIVATE_KEY_ENV} is invalid: {error}"))
-                })?;
-                let client = Octocrab::builder()
-                    .app(app_id.into(), key)
-                    .build()
-                    .map_err(|error| {
-                        ACError::GitHub(format!("failed to build GitHub client: {error}"))
-                    })?
-                    .installation(InstallationId::from(*installation_id))
-                    .map_err(|error| {
-                        ACError::GitHub(format!(
-                            "failed to create client for installation {installation_id}: {error}"
-                        ))
-                    })?;
-                Ok(GitRemote::GitHub { client })
-            }
+            } => Ok(GitRemote::GitHub(GitHub::new(*installation_id)?)),
         }
     }
 }
 
 impl GitRemote {
+    fn host(&self) -> &dyn GitHost {
+        match self {
+            GitRemote::GitHub(host) => host,
+        }
+    }
+
     pub async fn account_id(&self) -> ACResult<String> {
-        Ok("".into())
+        self.host().account_id().await
     }
 
     pub async fn account_repo_ids(&self) -> ACResult<Vec<String>> {
-        Ok(vec![])
+        self.host().account_repo_ids().await
     }
 
-    pub async fn account_repo_name(&self) -> ACResult<(String, String)> {
-        Ok(("".into(), "".into()))
+    pub async fn account_repo_name(&self, repo_id: &str) -> ACResult<(String, String)> {
+        self.host().account_repo_name(repo_id).await
     }
 
     pub async fn clone_bare_repo(
@@ -70,34 +62,14 @@ impl GitRemote {
         repo_dir: &str,
         deadline: SystemTime,
     ) -> ACResult<()> {
-        match self {
-            GitRemote::GitHub { .. } => {
-                let clone_url = format!("TODO: use {repo_id}");
-                GitLocal::exec_git(
-                    timeouts,
-                    Path::new(repo_dir),
-                    &["clone", "--bare", &clone_url, repo_dir],
-                    deadline,
-                )
-                .await?;
-                Ok(())
-            }
-        }
-    }
-}
-
-// helpers
-impl GitRemote {
-    fn required(key: &str) -> ACResult<String> {
-        match std::env::var(key) {
-            Ok(value) if !value.is_empty() => Ok(value),
-            Ok(_) => Err(ACError::Config(format!("{key} must not be empty"))),
-            Err(std::env::VarError::NotPresent) => {
-                Err(ACError::Config(format!("{key} must be set")))
-            }
-            Err(std::env::VarError::NotUnicode(_)) => {
-                Err(ACError::Config(format!("{key} is not valid UTF-8")))
-            }
-        }
+        let clone_url = self.host().clone_url(repo_id).await?;
+        GitLocal::exec_git(
+            timeouts,
+            Path::new(repo_dir),
+            &["clone", "--bare", &clone_url, repo_dir],
+            deadline,
+        )
+        .await?;
+        Ok(())
     }
 }
