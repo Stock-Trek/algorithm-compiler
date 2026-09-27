@@ -31,10 +31,10 @@ pub trait TaskTrait {
 impl TaskTrait for Task {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         match self {
-            Self::AddRepos(task) => task.handle(aws, deadline).await,
             Self::AddAllRepos(task) => task.handle(aws, deadline).await,
-            Self::RemoveRepos(task) => task.handle(aws, deadline).await,
             Self::RemoveAllRepos(task) => task.handle(aws, deadline).await,
+            Self::AddRepos(task) => task.handle(aws, deadline).await,
+            Self::RemoveRepos(task) => task.handle(aws, deadline).await,
             Self::AddRef(task) => task.handle(aws, deadline).await,
             Self::DeleteRef(task) => task.handle(aws, deadline).await,
             Self::RenameRepo(task) => task.handle(aws, deadline).await,
@@ -47,16 +47,16 @@ impl From<SqsMessage> for Task {
     fn from(value: SqsMessage) -> Self {
         let SqsMessage { detail, .. } = value;
         match detail {
-            SqsDetail::AddRepos { ids, .. } => Self::AddRepos(AddReposTask::new(ids)),
             SqsDetail::AddAllRepos {
                 account_id,
                 account_login,
                 ..
             } => Self::AddAllRepos(AddAllReposTask::new(account_id, account_login)),
-            SqsDetail::RemoveRepos { ids, .. } => Self::RemoveRepos(RemoveReposTask::new(ids)),
             SqsDetail::RemoveAllRepos { account_id, .. } => {
                 Self::RemoveAllRepos(RemoveAllReposTask::new(account_id))
             }
+            SqsDetail::AddRepos { ids, .. } => Self::AddRepos(AddReposTask::new(ids)),
+            SqsDetail::RemoveRepos { ids, .. } => Self::RemoveRepos(RemoveReposTask::new(ids)),
             SqsDetail::AddRef {
                 id,
                 ref_name,
@@ -69,9 +69,7 @@ impl From<SqsMessage> for Task {
                 ref_type,
                 ..
             } => Self::DeleteRef(DeleteRefTask::new(id, ref_name, ref_type)),
-            SqsDetail::RenameRepo { id, name, .. } => {
-                Self::RenameRepo(RenameRepoTask::new(id, name))
-            }
+            SqsDetail::RenameRepo { id, .. } => Self::RenameRepo(RenameRepoTask::new(id)),
             SqsDetail::Commit {
                 id,
                 branch_name,

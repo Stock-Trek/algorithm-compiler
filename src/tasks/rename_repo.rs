@@ -1,7 +1,7 @@
 use crate::{
     archive::Archive,
     aws::Aws,
-    dto::sqs_event::{SqsRepoId, SqsRepoName},
+    dto::sqs_event::SqsRepoId,
     error::ACResult,
     files::Files,
     git_repo::GitRepo,
@@ -13,12 +13,11 @@ use std::time::SystemTime;
 
 pub struct RenameRepoTask {
     id: SqsRepoId,
-    name: SqsRepoName,
 }
 
 impl RenameRepoTask {
-    pub fn new(id: SqsRepoId, name: SqsRepoName) -> Self {
-        Self { id, name }
+    pub fn new(id: SqsRepoId) -> Self {
+        Self { id }
     }
 }
 
