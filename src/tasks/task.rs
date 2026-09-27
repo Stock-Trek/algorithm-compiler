@@ -12,10 +12,10 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 
 pub enum Task {
-    AddRepos(AddReposTask),
     AddAllRepos(AddAllReposTask),
-    RemoveRepos(RemoveReposTask),
     RemoveAllRepos(RemoveAllReposTask),
+    AddRepos(AddReposTask),
+    RemoveRepos(RemoveReposTask),
     RenameRepo(RenameRepoTask),
     AddRef(AddRefTask),
     DeleteRef(DeleteRefTask),
