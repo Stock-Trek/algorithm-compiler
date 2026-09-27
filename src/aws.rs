@@ -3,8 +3,8 @@ use crate::{
     dynamodb::{DynamoDb, DynamoDbDatumRef, DynamoDbLock},
     error::ACResult,
     fenced::FencedS3,
-    github::GitHub,
     s3::S3,
+    source::GitHub,
 };
 use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::Client as DynamoDbClient;

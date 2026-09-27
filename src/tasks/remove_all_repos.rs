@@ -21,7 +21,8 @@ impl RemoveAllReposTask {
 #[async_trait]
 impl TaskTrait for RemoveAllReposTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let prefix = format!("{}/", Files::sanitize_path(&self.account_id)?);
+        let account = Files::sanitize_path(&self.source.account_id())?;
+        let prefix = format!("{account}/");
         let keys = aws
             .s3
             .list_keys_with_prefix(&aws.config.s3_bucket_commit_artifacts, &prefix)
@@ -31,13 +32,8 @@ impl TaskTrait for RemoveAllReposTask {
             .filter_map(|key| key.strip_prefix(&prefix))
             .filter_map(|path| path.split_once('/').map(|(repo, _)| repo.to_string()))
             .collect();
-        let ids = repo_ids
-            .into_iter()
-            .map(|repo_id| SqsRepoId {
-                account_id: self.account_id.clone(),
-                repo_id,
-            })
-            .collect();
-        RemoveReposTask::new(ids).handle(aws, deadline).await
+        RemoveReposTask::new(self.source.clone(), repo_ids.into_iter().collect())
+            .handle(aws, deadline)
+            .await
     }
 }

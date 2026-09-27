@@ -9,7 +9,6 @@ use crate::{
     error::{ACError, ACResult},
     fenced::FencedS3,
     files::{ALGORITHMS_ARCHIVE_FILE, Files},
-    git_repo::GitRepo,
     s3::S3ObjectRef,
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
@@ -39,10 +38,9 @@ impl CommitTask {
     }
 
     fn prefix(&self) -> ACResult<String> {
+        let base = RepoRefs::prefix(&self.source, &self.repo_id)?;
         Ok(format!(
-            "{}/{}/{}",
-            Files::sanitize_path(&self.id.account_id)?,
-            Files::sanitize_path(&self.id.repo_id)?,
+            "{base}{}",
             Files::sanitize_path(&self.commit_hash)?
         ))
     }
@@ -130,24 +128,13 @@ impl CommitTask {
 #[async_trait]
 impl TaskTrait for CommitTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let clone_url = self
-            .source
-            .repo(aws, self.repo_id.repo_number()?)
-            .await?
-            .clone_url;
-        let ref_name = GitRepo::stock_trek_ref_name(&self.branch_name, &self.commit_hash);
-        let refs = RepoRefs::new(&aws.config, &self.repo_id)?;
+        let ref_name = GitSource::stock_trek_ref_name(&self.branch_name, &self.commit_hash);
+        let refs = RepoRefs::new(&aws.config, self.source.clone(), &self.repo_id)?;
         let refs_ref = &refs;
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {
                 refs_ref
-                    .sync(
-                        &clone_url,
-                        Some((&ref_name, &self.commit_hash)),
-                        aws,
-                        &lock,
-                        deadline,
-                    )
+                    .sync_commit(&ref_name, &self.commit_hash, aws, &lock, deadline)
                     .await?;
                 let files = Files::new();
                 files
