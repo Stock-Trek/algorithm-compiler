@@ -1,3 +1,4 @@
+use crate::error::{ACError, ACResult};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
@@ -80,6 +81,14 @@ pub enum SqsDetail {
 pub struct SqsRepoId {
     pub account_id: String,
     pub repo_id: String,
+}
+
+impl SqsRepoId {
+    pub fn repo_number(&self) -> ACResult<u64> {
+        self.repo_id.parse().map_err(|error| {
+            ACError::InvalidMessage(format!("Invalid repository id {:?}: {error}", self.repo_id))
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

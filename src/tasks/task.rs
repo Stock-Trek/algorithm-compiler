@@ -51,22 +51,20 @@ impl From<SqsMessage> for Task {
                 Self::AddAllRepos(AddAllReposTask::new(provider, account_id))
             }
             SqsDetail::RemoveAllRepos { account_id } => {
-                Self::RemoveAllRepos(RemoveAllReposTask::new(provider, account_id))
+                Self::RemoveAllRepos(RemoveAllReposTask::new(account_id))
             }
             SqsDetail::AddRepos { ids } => Self::AddRepos(AddReposTask::new(provider, ids)),
-            SqsDetail::RemoveRepos { ids } => {
-                Self::RemoveRepos(RemoveReposTask::new(provider, ids))
-            }
+            SqsDetail::RemoveRepos { ids } => Self::RemoveRepos(RemoveReposTask::new(ids)),
             SqsDetail::AddRef {
                 id,
                 ref_name,
                 ref_type,
-            } => Self::AddRef(AddRefTask::new(provider, id, ref_name, ref_type)),
+            } => Self::AddRef(AddRefTask::new(id, ref_name, ref_type)),
             SqsDetail::DeleteRef {
                 id,
                 ref_name,
                 ref_type,
-            } => Self::DeleteRef(DeleteRefTask::new(provider, id, ref_name, ref_type)),
+            } => Self::DeleteRef(DeleteRefTask::new(id, ref_name, ref_type)),
             SqsDetail::Rename { id } => Self::Rename(RenameTask::new(provider, id)),
             SqsDetail::Commit {
                 id,

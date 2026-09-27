@@ -10,7 +10,14 @@ const GITHUB_PER_PAGE: u32 = 100;
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubRepo {
     pub id: u64,
+    pub name: String,
     pub clone_url: String,
+    pub owner: GitHubOwner,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GitHubOwner {
+    pub login: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -45,15 +52,8 @@ impl GitHub {
         Ok(Self { client })
     }
 
-    pub async fn repos(&self, installation_id: i64) -> ACResult<Vec<GitHubRepo>> {
-        let client = self
-            .client
-            .installation(InstallationId::from(installation_id as u64))
-            .map_err(|error| {
-                ACError::GitHub(format!(
-                    "failed to create client for installation {installation_id}: {error}"
-                ))
-            })?;
+    pub async fn repos(&self, installation_id: u64) -> ACResult<Vec<GitHubRepo>> {
+        let client = self.installation(installation_id)?;
         let mut repos = Vec::new();
         let mut page = 1;
         loop {
@@ -80,6 +80,28 @@ impl GitHub {
             page += 1;
         }
         Ok(repos)
+    }
+
+    pub async fn repo(&self, installation_id: u64, repo_id: u64) -> ACResult<GitHubRepo> {
+        let client = self.installation(installation_id)?;
+        client
+            .get::<GitHubRepo, _, _>(format!("/repositories/{repo_id}"), None::<&()>)
+            .await
+            .map_err(|error| {
+                ACError::GitHub(format!(
+                    "failed to get repository {repo_id} for installation {installation_id}: {error}"
+                ))
+            })
+    }
+
+    fn installation(&self, installation_id: u64) -> ACResult<Octocrab> {
+        self.client
+            .installation(InstallationId::from(installation_id))
+            .map_err(|error| {
+                ACError::GitHub(format!(
+                    "failed to create client for installation {installation_id}: {error}"
+                ))
+            })
     }
 }
 

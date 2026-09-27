@@ -10,12 +10,6 @@ pub struct GitRepo {
     timeouts: Timeouts,
 }
 
-#[derive(Debug, Clone)]
-pub struct GitCommit {
-    pub ref_name: String,
-    pub commit_hash: String,
-}
-
 impl GitRepo {
     pub fn new(timeouts: Timeouts) -> Self {
         Self { timeouts }
@@ -103,7 +97,7 @@ impl GitRepo {
             .await
     }
 
-    fn stock_trek_ref_name(ref_name: &str, commit_hash: &str) -> String {
+    pub fn stock_trek_ref_name(ref_name: &str, commit_hash: &str) -> String {
         format!("{STOCK_TREK_REF_PREFIX}/{ref_name}-{commit_hash}")
     }
 

@@ -43,14 +43,13 @@ impl RepoRefs {
     pub async fn sync(
         &self,
         clone_url: &str,
-        ref_name: &str,
-        commit_hash: &str,
+        commit: Option<(&str, &str)>,
         aws: &Aws,
-        files: &Files,
-        repo: &GitRepo,
         lock: &DynamoDbLock,
         deadline: SystemTime,
     ) -> ACResult<()> {
+        let files = Files::new();
+        let repo = GitRepo::new(aws.config.timeouts);
         files.prepare()?;
         match aws.s3.download(&self.repo_ref, &files.archive).await? {
             DownloadOutcome::Downloaded => {
@@ -61,8 +60,10 @@ impl RepoRefs {
                 repo.clone_bare(clone_url, &files.repo, deadline).await?;
             }
         }
-        repo.create_ref(ref_name, commit_hash, &files.repo, deadline)
-            .await?;
+        if let Some((ref_name, commit_hash)) = commit {
+            repo.create_ref(ref_name, commit_hash, &files.repo, deadline)
+                .await?;
+        }
         Archive::create(&files.repo, &files.archive)?;
         aws.fenced_s3(&self.lock_ref, lock)
             .upload(&self.repo_ref, &files.archive)

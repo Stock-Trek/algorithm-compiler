@@ -1,7 +1,7 @@
 use crate::{
     archive::Archive,
     aws::Aws,
-    dto::sqs_event::{GitProvider, SqsRefType, SqsRepoId},
+    dto::sqs_event::{SqsRefType, SqsRepoId},
     error::ACResult,
     files::Files,
     git_repo::GitRepo,
@@ -12,21 +12,14 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 
 pub struct DeleteRefTask {
-    provider: GitProvider,
     id: SqsRepoId,
     ref_name: String,
     ref_type: SqsRefType,
 }
 
 impl DeleteRefTask {
-    pub fn new(
-        provider: GitProvider,
-        id: SqsRepoId,
-        ref_name: String,
-        ref_type: SqsRefType,
-    ) -> Self {
+    pub fn new(id: SqsRepoId, ref_name: String, ref_type: SqsRefType) -> Self {
         Self {
-            provider,
             id,
             ref_name,
             ref_type,
