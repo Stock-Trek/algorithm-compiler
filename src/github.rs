@@ -45,15 +45,10 @@ impl GitHub {
         Ok(Self { client })
     }
 
-    pub async fn repos(&self, installation_id: &str) -> ACResult<Vec<GitHubRepo>> {
-        let installation_id = installation_id.parse::<u64>().map_err(|error| {
-            ACError::GitHub(format!(
-                "invalid installation id {installation_id}: {error}"
-            ))
-        })?;
+    pub async fn repos(&self, installation_id: i64) -> ACResult<Vec<GitHubRepo>> {
         let client = self
             .client
-            .installation(InstallationId::from(installation_id))
+            .installation(InstallationId::from(installation_id as u64))
             .map_err(|error| {
                 ACError::GitHub(format!(
                     "failed to create client for installation {installation_id}: {error}"
