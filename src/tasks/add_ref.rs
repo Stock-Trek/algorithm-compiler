@@ -4,7 +4,6 @@ use crate::{
     dto::sqs_event::{GitSource, SqsRefType},
     error::ACResult,
     files::Files,
-    git_repo::GitRepo,
     s3::DownloadOutcome,
     tasks::{repo_refs::RepoRefs, task::TaskTrait},
 };
@@ -32,8 +31,8 @@ impl AddRefTask {
 #[async_trait]
 impl TaskTrait for AddRefTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let refs = RepoRefs::new(&aws.config, &self.source)?;
-        let repo = GitRepo::new(aws.config.timeouts);
+        let refs = RepoRefs::new(&aws.config, self.source.clone(), &self.repo_id)?;
+        let source = &self.source;
         let refs_ref = &refs;
         let ref_name = self.ref_name.as_str();
         let ref_type = self.ref_type;
@@ -47,7 +46,8 @@ impl TaskTrait for AddRefTask {
                     return Ok(());
                 }
                 Archive::extract(&files.archive, &files.repo)?;
-                repo.add_ref(&files.repo, ref_name, ref_type, deadline)
+                source
+                    .add_ref(aws, &files.repo, ref_name, ref_type, deadline)
                     .await?;
                 Archive::create(&files.repo, &files.archive)?;
                 aws.fenced_s3(&refs_ref.lock_ref, &lock)

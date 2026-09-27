@@ -18,8 +18,6 @@ mod dynamodb;
 mod error;
 mod fenced;
 mod files;
-mod git_repo;
-mod github;
 mod program;
 mod s3;
 mod source;

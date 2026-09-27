@@ -31,20 +31,21 @@ impl RenameTask {
 #[async_trait]
 impl TaskTrait for RenameTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let repository = self.source.repo(aws, self.id.repo_number()?).await?;
-        let refs = RepoRefs::new(&aws.config, &self.id)?;
-        let key = format!("{}{S3_NAME_FILE}", RepoRefs::prefix(&self.id)?);
+        let repository = self.source.repo(aws, &self.repo_id).await?;
+        let refs = RepoRefs::new(&aws.config, self.source.clone(), &self.repo_id)?;
+        let key = format!(
+            "{}{S3_NAME_FILE}",
+            RepoRefs::prefix(&self.source, &self.repo_id)?
+        );
         let bucket = refs.repo_ref.bucket.clone();
+        let account = repository.owner;
+        let repo = repository.name;
         let refs_ref = &refs;
         let files = Files::new();
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {
                 files.clean()?;
-                let body = serde_json::to_vec(&RenameBlob {
-                    account: repository.owner,
-                    repo: repository.name,
-                })
-                .map_err(|error| {
+                let body = serde_json::to_vec(&RenameBlob { account, repo }).map_err(|error| {
                     ACError::InternalServer(format!("Failed to serialize rename: {error}"))
                 })?;
                 aws.fenced_s3(&refs_ref.lock_ref, &lock)

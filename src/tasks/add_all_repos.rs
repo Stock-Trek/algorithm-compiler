@@ -20,14 +20,8 @@ impl AddAllReposTask {
 #[async_trait]
 impl TaskTrait for AddAllReposTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let ids = self
-            .source
-            .repos(aws)
-            .await?
-            .into_iter()
-            .map(|repo| repo.id.to_string())
-            .collect();
-        AddReposTask::new(self.source.clone(), ids)
+        let repo_ids = self.source.account_repo_ids(aws).await?;
+        AddReposTask::new(self.source.clone(), repo_ids)
             .handle(aws, deadline)
             .await
     }
