@@ -47,7 +47,13 @@ impl TaskTrait for DeleteRefTask {
                 }
                 Archive::extract(&files.archive, &files.repo)?;
                 source
-                    .delete_ref(aws, &files.repo, ref_name, ref_type, deadline)
+                    .delete_ref(
+                        aws.config.timeouts,
+                        &files.repo,
+                        ref_name,
+                        ref_type,
+                        deadline,
+                    )
                     .await?;
                 Archive::create(&files.repo, &files.archive)?;
                 aws.fenced_s3(&refs_ref.lock_ref, &lock)

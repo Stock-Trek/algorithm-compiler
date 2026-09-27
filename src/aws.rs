@@ -4,7 +4,6 @@ use crate::{
     error::ACResult,
     fenced::FencedS3,
     s3::S3,
-    source::GitHub,
 };
 use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::Client as DynamoDbClient;
@@ -14,7 +13,6 @@ pub struct Aws {
     pub config: Config,
     pub dynamodb: DynamoDb,
     pub s3: S3,
-    pub github: GitHub,
 }
 
 impl Aws {
@@ -37,7 +35,6 @@ impl Aws {
                 client: S3Client::new(&sdk_config),
                 operation_timeout,
             },
-            github: GitHub::new()?,
         })
     }
 

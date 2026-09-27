@@ -31,7 +31,7 @@ impl RenameTask {
 #[async_trait]
 impl TaskTrait for RenameTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let repository = self.source.repo(aws, &self.repo_id).await?;
+        let repository = self.source.repo(&self.repo_id).await?;
         let refs = RepoRefs::new(&aws.config, self.source.clone(), &self.repo_id)?;
         let key = format!(
             "{}{S3_NAME_FILE}",

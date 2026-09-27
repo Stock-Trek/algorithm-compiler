@@ -59,7 +59,13 @@ impl RepoRefs {
         self.prepare_repo(aws, deadline).await?;
         let files = Files::new();
         self.source
-            .create_ref(aws, ref_name, commit_hash, &files.repo, deadline)
+            .create_ref(
+                aws.config.timeouts,
+                ref_name,
+                commit_hash,
+                &files.repo,
+                deadline,
+            )
             .await?;
         self.archive_and_upload(aws, lock).await
     }
@@ -70,11 +76,18 @@ impl RepoRefs {
         match aws.s3.download(&self.repo_ref, &files.archive).await? {
             DownloadOutcome::Downloaded => {
                 Archive::extract(&files.archive, &files.repo)?;
-                self.source.fetch(aws, &files.repo, deadline).await?;
+                self.source
+                    .fetch(aws.config.timeouts, &files.repo, deadline)
+                    .await?;
             }
             DownloadOutcome::NotFound => {
                 self.source
-                    .clone_bare_repo(aws, &self.repo_id, Files::path_str(&files.repo)?, deadline)
+                    .clone_bare_repo(
+                        aws.config.timeouts,
+                        &self.repo_id,
+                        Files::path_str(&files.repo)?,
+                        deadline,
+                    )
                     .await?;
             }
         }

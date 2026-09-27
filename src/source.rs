@@ -1,5 +1,4 @@
 use crate::{
-    aws::Aws,
     dto::sqs_event::{GitSource, SqsRefType},
     error::{ACError, ACResult},
     program::Program,
@@ -141,50 +140,65 @@ impl GitSource {
         }
     }
 
-    pub async fn account_repo_ids(&self, aws: &Aws) -> ACResult<Vec<String>> {
+    pub async fn account_repo_ids(&self) -> ACResult<Vec<String>> {
         match self {
             Self::GitHub {
                 installation_id, ..
-            } => Ok(aws
-                .github
-                .repos(*installation_id)
-                .await?
-                .into_iter()
-                .map(|repo| repo.id.to_string())
-                .collect()),
+            } => Ok(GitHub {
+                client: Octocrab::default(),
+            }
+            .repos(*installation_id)
+            .await?
+            .into_iter()
+            .map(|repo| repo.id.to_string())
+            .collect()),
         }
     }
 
-    pub async fn repo(&self, aws: &Aws, repo_id: &str) -> ACResult<Repo> {
+    pub async fn repo(&self, repo_id: &str) -> ACResult<Repo> {
         let repo_id = parse_repo_id(repo_id)?;
         match self {
             Self::GitHub {
                 installation_id, ..
-            } => Ok(aws.github.repo(*installation_id, repo_id).await?.into()),
+            } => Ok(GitHub {
+                client: Octocrab::default(),
+            }
+            .repo(*installation_id, repo_id)
+            .await?
+            .into()),
         }
     }
 
     pub async fn clone_bare_repo(
         &self,
-        aws: &Aws,
+        timeouts: Timeouts,
         repo_id: &str,
         repo_dir: &str,
         deadline: SystemTime,
     ) -> ACResult<()> {
-        let repo = self.repo(aws, repo_id).await?;
-        Self::exec_git(
-            aws.config.timeouts,
-            Path::new(repo_dir),
-            &["clone", "--bare", &repo.clone_url, repo_dir],
-            deadline,
-        )
-        .await?;
-        Ok(())
+        match self {
+            GitSource::GitHub { .. } => {
+                let repo = self.repo(repo_id).await?;
+                Self::exec_git(
+                    timeouts,
+                    Path::new(repo_dir),
+                    &["clone", "--bare", &repo.clone_url, repo_dir],
+                    deadline,
+                )
+                .await?;
+                Ok(())
+            }
+        }
     }
 
-    pub async fn fetch(&self, aws: &Aws, path: &Path, deadline: SystemTime) -> ACResult<String> {
+    pub async fn fetch(
+        &self,
+        timeouts: Timeouts,
+        path: &Path,
+        deadline: SystemTime,
+    ) -> ACResult<String> {
         Self::exec_git(
-            aws.config.timeouts,
+            timeouts,
             path,
             &["fetch", "--prune", "--tags", "origin"],
             deadline,
@@ -194,14 +208,14 @@ impl GitSource {
 
     pub async fn create_ref(
         &self,
-        aws: &Aws,
+        timeouts: Timeouts,
         ref_name: &str,
         commit_hash: &str,
         path: &Path,
         deadline: SystemTime,
     ) -> ACResult<String> {
         Self::exec_git(
-            aws.config.timeouts,
+            timeouts,
             path,
             &["update-ref", "--", ref_name, commit_hash],
             deadline,
@@ -211,7 +225,7 @@ impl GitSource {
 
     pub async fn add_ref(
         &self,
-        aws: &Aws,
+        timeouts: Timeouts,
         path: &Path,
         ref_name: &str,
         ref_type: SqsRefType,
@@ -219,15 +233,9 @@ impl GitSource {
     ) -> ACResult<String> {
         let full_name = Self::full_ref_name(ref_name, ref_type);
         let refspec = format!("+{full_name}:{full_name}");
-        Self::exec_git(
-            aws.config.timeouts,
-            path,
-            &["fetch", "origin", &refspec],
-            deadline,
-        )
-        .await?;
+        Self::exec_git(timeouts, path, &["fetch", "origin", &refspec], deadline).await?;
         let commit_hash = Self::exec_git(
-            aws.config.timeouts,
+            timeouts,
             path,
             &["rev-parse", &format!("{full_name}^{{commit}}")],
             deadline,
@@ -236,7 +244,7 @@ impl GitSource {
         let commit_hash = commit_hash.trim();
         let stock_trek_ref = Self::stock_trek_ref_name(ref_name, commit_hash);
         Self::exec_git(
-            aws.config.timeouts,
+            timeouts,
             path,
             &["update-ref", "--", &stock_trek_ref, commit_hash],
             deadline,
@@ -246,7 +254,7 @@ impl GitSource {
 
     pub async fn delete_ref(
         &self,
-        aws: &Aws,
+        timeouts: Timeouts,
         path: &Path,
         ref_name: &str,
         ref_type: SqsRefType,
@@ -254,7 +262,7 @@ impl GitSource {
     ) -> ACResult<String> {
         let prefix = format!("{STOCK_TREK_REF_PREFIX}/{ref_name}-");
         let stock_trek_refs = Self::exec_git(
-            aws.config.timeouts,
+            timeouts,
             path,
             &["for-each-ref", "--format=%(refname)", STOCK_TREK_REF_PREFIX],
             deadline,
@@ -265,7 +273,7 @@ impl GitSource {
             .filter(|stock_trek_ref| Self::is_stock_trek_ref(stock_trek_ref, &prefix))
         {
             Self::exec_git(
-                aws.config.timeouts,
+                timeouts,
                 path,
                 &["update-ref", "-d", "--", stock_trek_ref],
                 deadline,
@@ -274,7 +282,7 @@ impl GitSource {
         }
         let full_name = Self::full_ref_name(ref_name, ref_type);
         Self::exec_git(
-            aws.config.timeouts,
+            timeouts,
             path,
             &["update-ref", "-d", "--", &full_name],
             deadline,

@@ -47,7 +47,13 @@ impl TaskTrait for AddRefTask {
                 }
                 Archive::extract(&files.archive, &files.repo)?;
                 source
-                    .add_ref(aws, &files.repo, ref_name, ref_type, deadline)
+                    .add_ref(
+                        aws.config.timeouts,
+                        &files.repo,
+                        ref_name,
+                        ref_type,
+                        deadline,
+                    )
                     .await?;
                 Archive::create(&files.repo, &files.archive)?;
                 aws.fenced_s3(&refs_ref.lock_ref, &lock)
