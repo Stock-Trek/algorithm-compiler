@@ -23,6 +23,7 @@ struct GitHubRepo {
 
 #[derive(Debug, Clone, Deserialize)]
 struct GitHubOwner {
+    id: u64,
     login: String,
 }
 
@@ -39,10 +40,7 @@ struct RepositoriesParams {
 
 #[derive(Clone)]
 pub enum GitRemote {
-    GitHub {
-        client: Octocrab,
-        installation_id: u64,
-    },
+    GitHub { client: Octocrab },
 }
 
 impl TryFrom<&GitSource> for GitRemote {
@@ -73,10 +71,7 @@ impl TryFrom<&GitSource> for GitRemote {
                             "failed to create client for installation {installation_id}: {error}"
                         ))
                     })?;
-                Ok(GitRemote::GitHub {
-                    client,
-                    installation_id: *installation_id,
-                })
+                Ok(GitRemote::GitHub { client })
             }
         }
     }
@@ -84,11 +79,7 @@ impl TryFrom<&GitSource> for GitRemote {
 
 impl GitRemote {
     pub async fn account_id(&self) -> ACResult<String> {
-        match self {
-            GitRemote::GitHub {
-                installation_id, ..
-            } => Ok(installation_id.to_string()),
-        }
+        Ok(self.owner().await?.id.to_string())
     }
 
     pub async fn account_repo_ids(&self) -> ACResult<Vec<String>> {
@@ -123,11 +114,31 @@ impl GitRemote {
         Ok(())
     }
 
+    async fn owner(&self) -> ACResult<GitHubOwner> {
+        let GitRemote::GitHub { client } = self;
+        let params = RepositoriesParams {
+            per_page: 1,
+            page: 1,
+        };
+        let response = client
+            .get::<InstallationRepositoriesResponse, _, _>(
+                "/installation/repositories",
+                Some(&params),
+            )
+            .await
+            .map_err(|error| {
+                ACError::GitHub(format!("failed to fetch installation owner: {error}"))
+            })?;
+        response
+            .repositories
+            .into_iter()
+            .next()
+            .map(|repo| repo.owner)
+            .ok_or_else(|| ACError::GitHub("installation has no repositories".into()))
+    }
+
     async fn repos(&self) -> ACResult<Vec<GitHubRepo>> {
-        let GitRemote::GitHub {
-            client,
-            installation_id,
-        } = self;
+        let GitRemote::GitHub { client } = self;
         let mut repos = Vec::new();
         let mut page = 1;
         loop {
@@ -142,9 +153,7 @@ impl GitRemote {
                 )
                 .await
                 .map_err(|error| {
-                    ACError::GitHub(format!(
-                        "failed to list repositories for installation {installation_id}: {error}"
-                    ))
+                    ACError::GitHub(format!("failed to list installation repositories: {error}"))
                 })?;
             let received = response.repositories.len();
             repos.extend(response.repositories);
@@ -158,17 +167,12 @@ impl GitRemote {
 
     async fn repo(&self, repo_id: &str) -> ACResult<GitHubRepo> {
         let repo_id = parse_repo_id(repo_id)?;
-        let GitRemote::GitHub {
-            client,
-            installation_id,
-        } = self;
+        let GitRemote::GitHub { client } = self;
         client
             .get::<GitHubRepo, _, _>(format!("/repositories/{repo_id}"), None::<&()>)
             .await
             .map_err(|error| {
-                ACError::GitHub(format!(
-                    "failed to get repository {repo_id} for installation {installation_id}: {error}"
-                ))
+                ACError::GitHub(format!("failed to get repository {repo_id}: {error}"))
             })
     }
 }
