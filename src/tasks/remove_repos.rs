@@ -24,10 +24,9 @@ impl RemoveReposTask {
 #[async_trait]
 impl TaskTrait for RemoveReposTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let account_id = self.git_remote.account_id().await?;
         for repo_id in &self.repo_ids {
-            let refs = RepoRefs::new(&aws.config, self.git_remote.clone(), &account_id, repo_id)?;
-            let prefix = RepoRefs::prefix(&account_id, repo_id)?;
+            let refs = RepoRefs::new(&aws.config, self.git_remote.clone(), repo_id)?;
+            let prefix = RepoRefs::prefix(repo_id)?;
             let refs_ref = &refs;
             let prefix_ref = &prefix;
             aws.dynamodb

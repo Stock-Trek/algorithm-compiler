@@ -20,33 +20,26 @@ pub struct RepoRefs {
 }
 
 impl RepoRefs {
-    pub fn new(
-        config: &Config,
-        git_remote: GitRemote,
-        account_id: &str,
-        repo_id: &str,
-    ) -> ACResult<Self> {
-        let account = Files::sanitize_path(account_id)?;
+    pub fn new(config: &Config, git_remote: GitRemote, repo_id: &str) -> ACResult<Self> {
         let repo = Files::sanitize_path(repo_id)?;
         Ok(Self {
             lock_ref: DynamoDbDatumRef {
                 table: config.dynamodb_lock_table.clone(),
                 key_name: DYNAMODB_LOCK_KEY_ATTRIBUTE.into(),
-                key_value: format!("{account}/{repo}"),
+                key_value: repo.clone(),
             },
             repo_ref: S3ObjectRef {
                 bucket: config.s3_bucket_commit_artifacts.clone(),
-                key: format!("{account}/{repo}/{S3_REPOS_PREFIX}/{repo}.tar.gz"),
+                key: format!("{repo}/{S3_REPOS_PREFIX}/{repo}.tar.gz"),
             },
             git_remote,
             repo_id: repo_id.to_string(),
         })
     }
 
-    pub fn prefix(account_id: &str, repo_id: &str) -> ACResult<String> {
-        let account = Files::sanitize_path(account_id)?;
+    pub fn prefix(repo_id: &str) -> ACResult<String> {
         let repo = Files::sanitize_path(repo_id)?;
-        Ok(format!("{account}/{repo}/"))
+        Ok(format!("{repo}/"))
     }
 
     pub async fn sync(&self, aws: &Aws, lock: &DynamoDbLock, deadline: SystemTime) -> ACResult<()> {
