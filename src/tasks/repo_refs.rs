@@ -22,24 +22,25 @@ pub struct RepoRefs {
 impl RepoRefs {
     pub fn new(config: &Config, git_remote: GitRemote, repo_id: &str) -> ACResult<Self> {
         let repo = Files::sanitize_path(repo_id)?;
+        let path = format!("{}/{repo}", git_remote.provider());
         Ok(Self {
             lock_ref: DynamoDbDatumRef {
                 table: config.dynamodb_lock_table.clone(),
                 key_name: DYNAMODB_LOCK_KEY_ATTRIBUTE.into(),
-                key_value: repo.clone(),
+                key_value: path.clone(),
             },
             repo_ref: S3ObjectRef {
                 bucket: config.s3_bucket_commit_artifacts.clone(),
-                key: format!("{repo}/{S3_REPOS_PREFIX}/{repo}.tar.gz"),
+                key: format!("{path}/{S3_REPOS_PREFIX}/{repo}.tar.gz"),
             },
             git_remote,
             repo_id: repo_id.to_string(),
         })
     }
 
-    pub fn prefix(repo_id: &str) -> ACResult<String> {
+    pub fn prefix(git_remote: &GitRemote, repo_id: &str) -> ACResult<String> {
         let repo = Files::sanitize_path(repo_id)?;
-        Ok(format!("{repo}/"))
+        Ok(format!("{}/{repo}/", git_remote.provider()))
     }
 
     pub async fn sync(&self, aws: &Aws, lock: &DynamoDbLock, deadline: SystemTime) -> ACResult<()> {
