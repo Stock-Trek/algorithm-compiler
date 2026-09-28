@@ -54,6 +54,8 @@ pub enum ACError {
     TaskJoin(tokio::task::JoinError),
     #[error("Timeout: {0}")]
     Timeout(String),
+    #[error("UserError: {0}")]
+    UserError(String),
 }
 
 impl ACError {
