@@ -53,3 +53,9 @@ pub enum ACError {
     #[error("Timeout: {0}")]
     Timeout(String),
 }
+
+impl ACError {
+    pub fn is_retryable(&self) -> bool {
+        !matches!(self, Self::InvalidMessage(_))
+    }
+}
