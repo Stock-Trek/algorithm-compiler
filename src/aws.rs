@@ -4,15 +4,18 @@ use crate::{
     error::ACResult,
     fenced::FencedS3,
     s3::S3,
+    sqs::Sqs,
 };
 use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::Client as DynamoDbClient;
 use aws_sdk_s3::Client as S3Client;
+use aws_sdk_sqs::Client as SqsClient;
 
 pub struct Aws {
     pub config: Config,
     pub dynamodb: DynamoDb,
     pub s3: S3,
+    pub sqs: Sqs,
 }
 
 impl Aws {
@@ -27,6 +30,10 @@ impl Aws {
             .load()
             .await;
         Ok(Self {
+            sqs: Sqs {
+                client: SqsClient::new(&sdk_config),
+                queue_url: config.sqs_queue_url.clone(),
+            },
             config,
             dynamodb: DynamoDb {
                 client: DynamoDbClient::new(&sdk_config),

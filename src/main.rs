@@ -23,6 +23,7 @@ mod git_remote;
 mod github;
 mod program;
 mod s3;
+mod sqs;
 mod tasks;
 mod timeouts;
 

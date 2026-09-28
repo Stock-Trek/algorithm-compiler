@@ -1,5 +1,6 @@
 use crate::{
     aws::Aws,
+    dto::sqs_event::GitSource,
     error::ACResult,
     git_remote::GitRemote,
     tasks::{remove_repos::RemoveReposTask, task::TaskTrait},
@@ -8,12 +9,13 @@ use async_trait::async_trait;
 use std::{collections::BTreeSet, time::SystemTime};
 
 pub struct RemoveAllReposTask {
+    source: GitSource,
     git_remote: GitRemote,
 }
 
 impl RemoveAllReposTask {
-    pub fn new(git_remote: GitRemote) -> Self {
-        Self { git_remote }
+    pub fn new(source: GitSource, git_remote: GitRemote) -> Self {
+        Self { source, git_remote }
     }
 }
 
@@ -30,7 +32,7 @@ impl TaskTrait for RemoveAllReposTask {
             .filter_map(|key| key.strip_prefix(&provider_prefix))
             .filter_map(|key| key.split_once('/').map(|(repo, _)| repo.to_string()))
             .collect();
-        RemoveReposTask::new(self.git_remote.clone(), repo_ids.into_iter().collect())
+        RemoveReposTask::new(self.source.clone(), repo_ids.into_iter().collect())
             .handle(aws, deadline)
             .await
     }

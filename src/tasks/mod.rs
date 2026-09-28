@@ -1,9 +1,11 @@
 pub mod add_all_repos;
 pub mod add_ref;
+pub mod add_repo;
 pub mod add_repos;
 pub mod commit;
 pub mod delete_ref;
 pub mod remove_all_repos;
+pub mod remove_repo;
 pub mod remove_repos;
 pub mod rename;
 pub mod repo_refs;
