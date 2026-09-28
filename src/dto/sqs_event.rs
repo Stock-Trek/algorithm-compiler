@@ -50,6 +50,10 @@ pub enum SqsDetail {
         action: SqsAction,
         repo_ids: Vec<String>,
     },
+    Repo {
+        action: SqsAction,
+        repo_id: String,
+    },
     Rename {
         repo_id: String,
     },
