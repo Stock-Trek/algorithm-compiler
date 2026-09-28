@@ -24,8 +24,10 @@ impl TaskTrait for RemoveAllReposTask {
             .s3
             .list_keys_with_prefix(&aws.config.s3_bucket_commit_artifacts, "")
             .await?;
+        let provider_prefix = format!("{}/", self.git_remote.provider());
         let repo_ids: BTreeSet<String> = keys
             .iter()
+            .filter_map(|key| key.strip_prefix(&provider_prefix))
             .filter_map(|key| key.split_once('/').map(|(repo, _)| repo.to_string()))
             .collect();
         RemoveReposTask::new(self.git_remote.clone(), repo_ids.into_iter().collect())

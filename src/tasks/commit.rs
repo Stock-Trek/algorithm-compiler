@@ -37,7 +37,7 @@ impl CommitTask {
     }
 
     fn prefix(&self) -> ACResult<String> {
-        let base = RepoRefs::prefix(&self.repo_id)?;
+        let base = RepoRefs::prefix(&self.git_remote, &self.repo_id)?;
         Ok(format!(
             "{base}{}",
             Files::sanitize_path(&self.commit_hash)?

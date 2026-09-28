@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 const GITHUB_APP_ID_ENV: &str = "GITHUB_APP_ID";
 const GITHUB_APP_PRIVATE_KEY_ENV: &str = "GITHUB_APP_PRIVATE_KEY";
 const GITHUB_PER_PAGE: u32 = 100;
+const GITHUB_PROVIDER: &str = "github";
 
 #[derive(Debug, Clone, Deserialize)]
 struct GitHubRepo {
@@ -42,6 +43,10 @@ pub struct GitHub {
 
 #[async_trait]
 impl GitHost for GitHub {
+    fn provider(&self) -> &'static str {
+        GITHUB_PROVIDER
+    }
+
     async fn account_repo_ids(&self) -> ACResult<Vec<String>> {
         Ok(self
             .repos()
