@@ -19,6 +19,7 @@ RUN dnf install -y \
     gcc \
     git \
     protobuf-compiler \
+    shadow-utils \
     tar \
     xz \
  && dnf clean all
@@ -41,5 +42,12 @@ COPY --from=builder /app/bootstrap .
 COPY ./algorithm-runner ./algorithm-runner
 
 RUN cargo build --manifest-path ./algorithm-runner/Cargo.toml --target=wasm32-wasip1 --release
+
+RUN groupadd --gid 10001 sandbox \
+ && useradd --uid 10001 --gid sandbox --no-create-home sandbox
+
+ENV UNTRUSTED_BUILD_UID=10001
+ENV UNTRUSTED_BUILD_GID=10001
+ENV UNTRUSTED_CARGO_HOME="/tmp/algorithm-compiler-cargo"
 
 CMD ["bootstrap"]

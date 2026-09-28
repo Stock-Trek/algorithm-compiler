@@ -1,4 +1,7 @@
-use crate::error::{ACError, ACResult};
+use crate::{
+    error::{ACError, ACResult},
+    sandbox::Sandbox,
+};
 use std::{
     path::Path,
     process::{ExitStatus, Output, Stdio},
@@ -42,11 +45,13 @@ impl Program {
         Self::output_to_string(output)
     }
 
-    /// Runs an untrusted command with a minimal, credential-free environment.
+    /// Runs an untrusted command with a minimal, credential-free environment
+    /// and, when configured, as an unprivileged user.
     ///
     /// Used for processing attacker-controlled sources and build artifacts so
-    /// that the Lambda's credentials and other secrets are never visible to
-    /// the spawned process.
+    /// that the Lambda's credentials are not exposed directly through the
+    /// environment and cannot be read from root-owned processes or files. The
+    /// child still shares the host's network and PID namespaces.
     pub async fn run_with_clean_env(
         program: &str,
         args: &[&str],
@@ -79,6 +84,7 @@ impl Program {
                 command.env(key, value);
             }
         }
+        Sandbox::configure(&mut command)?;
         Self::output(command, program, args, cwd, timeout).await
     }
 

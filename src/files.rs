@@ -2,6 +2,7 @@ use crate::{
     dto::compile_result::{CodeLocation, CompileMessage, CompileResult, CompileStatus},
     error::{ACError, ACResult},
     program::Program,
+    sandbox::Sandbox,
     timeouts::Timeouts,
 };
 use serde_json::Value;
@@ -90,7 +91,11 @@ impl Files {
     pub async fn prepare(&self) -> ACResult<()> {
         self.clean().await?;
         Self::copy_dir(Path::new(SOURCE), &self.build).await?;
-        self.seed_target().await
+        self.seed_target().await?;
+        Sandbox::prepare_cargo_home().await?;
+        Sandbox::chown(&self.build).await?;
+        Sandbox::chown_recursive(&self.build.join(TARGET_FOLDER)).await?;
+        Ok(())
     }
 
     async fn seed_target(&self) -> ACResult<()> {
