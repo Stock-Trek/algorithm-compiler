@@ -139,10 +139,18 @@ impl TaskTrait for CommitTask {
                     .sync_commit(&ref_name, &self.commit_hash, aws, &lock, deadline)
                     .await?;
                 let files = Files::new();
-                files
+                let compile_result = match files
                     .copy_algorithms(&self.commit_hash, &aws.config.timeouts, deadline)
-                    .await?;
-                let compile_result = files.compile(&aws.config.timeouts, deadline).await?;
+                    .await
+                {
+                    Ok(()) => files.compile(&aws.config.timeouts, deadline).await?,
+                    Err(ACError::UserError(message)) => CompileResult {
+                        result: CompileStatus::Failure,
+                        errors: vec![message],
+                        compile_messages: vec![],
+                    },
+                    Err(error) => return Err(error),
+                };
                 let s3 = aws.fenced_s3(&refs_ref.lock_ref, &lock);
                 let bucket = &aws.config.s3_bucket_commit_artifacts;
                 self.upload_compile_output(bucket, &s3, &compile_result)
