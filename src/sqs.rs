@@ -6,7 +6,7 @@ use aws_sdk_sqs::Client as SqsClient;
 
 pub struct Sqs {
     pub client: SqsClient,
-    pub queue_url: String,
+    pub url: String,
 }
 
 impl Sqs {
@@ -16,7 +16,7 @@ impl Sqs {
         })?;
         self.client
             .send_message()
-            .queue_url(&self.queue_url)
+            .queue_url(&self.url)
             .message_body(body)
             .send()
             .await

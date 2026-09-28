@@ -32,7 +32,7 @@ impl Aws {
         Ok(Self {
             sqs: Sqs {
                 client: SqsClient::new(&sdk_config),
-                queue_url: config.sqs_queue_url.clone(),
+                url: config.sqs_url.clone(),
             },
             config,
             dynamodb: DynamoDb {
