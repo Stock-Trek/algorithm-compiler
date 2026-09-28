@@ -7,12 +7,11 @@ use crate::{
 use serde_json::Value;
 use std::{
     collections::HashMap,
-    fs,
     path::{Path, PathBuf},
     sync::LazyLock,
     time::SystemTime,
 };
-use tokio::process::Command;
+use tokio::{fs, process::Command};
 use tracing::{info, warn};
 
 const BASE: &str = "/tmp/algorithm-compiler";
@@ -63,37 +62,49 @@ impl Files {
         &FILES
     }
 
-    pub fn clean(&self) -> ACResult<()> {
+    pub async fn clean(&self) -> ACResult<()> {
         let target = self.build.join(TARGET_FOLDER);
         let cache = self.target_cache();
-        if target.exists() {
-            Self::remove_dir_all_if_exists(&cache)?;
-            fs::rename(&target, &cache).map_err(ACError::FileSystem)?;
+        if fs::try_exists(&target).await.map_err(ACError::FileSystem)? {
+            Self::remove_dir_all_if_exists(&cache).await?;
+            fs::rename(&target, &cache)
+                .await
+                .map_err(ACError::FileSystem)?;
         }
-        let restore_target = cache.exists();
-        Self::remove_dir_all_if_exists(&self.base)?;
-        fs::create_dir_all(&self.repo).map_err(ACError::FileSystem)?;
-        fs::create_dir_all(&self.build).map_err(ACError::FileSystem)?;
+        let restore_target = fs::try_exists(&cache).await.map_err(ACError::FileSystem)?;
+        Self::remove_dir_all_if_exists(&self.base).await?;
+        fs::create_dir_all(&self.repo)
+            .await
+            .map_err(ACError::FileSystem)?;
+        fs::create_dir_all(&self.build)
+            .await
+            .map_err(ACError::FileSystem)?;
         if restore_target {
-            fs::rename(&cache, &target).map_err(ACError::FileSystem)?;
+            fs::rename(&cache, &target)
+                .await
+                .map_err(ACError::FileSystem)?;
         }
         Ok(())
     }
 
-    pub fn prepare(&self) -> ACResult<()> {
-        self.clean()?;
-        Self::copy_dir(Path::new(SOURCE), &self.build)?;
-        self.seed_target()
+    pub async fn prepare(&self) -> ACResult<()> {
+        self.clean().await?;
+        Self::copy_dir(Path::new(SOURCE), &self.build).await?;
+        self.seed_target().await
     }
 
-    fn seed_target(&self) -> ACResult<()> {
+    async fn seed_target(&self) -> ACResult<()> {
         let target = self.build.join(TARGET_FOLDER);
-        if target.exists() {
+        if fs::try_exists(&target).await.map_err(ACError::FileSystem)? {
             return Ok(());
         }
         let source = Path::new(SOURCE).join(TARGET_FOLDER);
-        if source.is_dir() {
-            Self::copy_dir(&source, &target)?;
+        if fs::metadata(&source)
+            .await
+            .map(|metadata| metadata.is_dir())
+            .unwrap_or(false)
+        {
+            Self::copy_dir(&source, &target).await?;
         }
         Ok(())
     }
@@ -102,8 +113,8 @@ impl Files {
         PathBuf::from(format!("{BASE}-target"))
     }
 
-    fn remove_dir_all_if_exists(path: &Path) -> ACResult<()> {
-        match fs::remove_dir_all(path) {
+    async fn remove_dir_all_if_exists(path: &Path) -> ACResult<()> {
+        match fs::remove_dir_all(path).await {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(error) => Err(ACError::FileSystem(error)),
@@ -116,7 +127,9 @@ impl Files {
         timeouts: &Timeouts,
         deadline: SystemTime,
     ) -> ACResult<()> {
-        fs::create_dir_all(&self.algorithms).map_err(ACError::FileSystem)?;
+        fs::create_dir_all(&self.algorithms)
+            .await
+            .map_err(ACError::FileSystem)?;
         let git_dir = Self::path_str(&self.repo)?;
         let algorithms = Self::path_str(&self.algorithms)?;
         let mut git = Command::new("git");
@@ -189,7 +202,7 @@ impl Files {
         deadline: SystemTime,
     ) -> ACResult<CompileResult> {
         info!("Building wasm");
-        let _ = fs::remove_file(self.build.join(BUILT_WASM));
+        let _ = fs::remove_file(self.build.join(BUILT_WASM)).await;
         let output = Program::output_with_clean_env(
             "cargo",
             &[
@@ -214,7 +227,8 @@ impl Files {
             ));
         }
         if compile_output.success != Some(true) {
-            self.save_compile_output(&Self::raw_compile_output(&stdout, &stderr))?;
+            self.save_compile_output(&Self::raw_compile_output(&stdout, &stderr))
+                .await?;
             let result = match compile_output.success {
                 Some(false) => CompileStatus::Failure,
                 _ => CompileStatus::Error,
@@ -235,7 +249,10 @@ impl Files {
                 compile_messages: compile_output.compile_messages,
             });
         }
-        if !self.build.join(BUILT_WASM).exists() {
+        if !fs::try_exists(self.build.join(BUILT_WASM))
+            .await
+            .map_err(ACError::FileSystem)?
+        {
             return Err(ACError::InternalServer("WASM file was not built".into()));
         }
         Ok(CompileResult {
@@ -249,13 +266,15 @@ impl Files {
         format!("--- stdout ---\n{stdout}\n--- stderr ---\n{stderr}\n")
     }
 
-    fn save_compile_output(&self, raw: &str) -> ACResult<()> {
-        fs::write(self.compile_output_file(), raw).map_err(ACError::FileSystem)
+    async fn save_compile_output(&self, raw: &str) -> ACResult<()> {
+        fs::write(self.compile_output_file(), raw)
+            .await
+            .map_err(ACError::FileSystem)
     }
 
     async fn compile_cwasm(&self, timeouts: &Timeouts, deadline: SystemTime) -> ACResult<()> {
         info!("Compiling cwasm");
-        let _ = fs::remove_file(self.build.join(BUILT_CWASM));
+        let _ = fs::remove_file(self.build.join(BUILT_CWASM)).await;
         Program::run_with_clean_env(
             "wasmtime",
             &["compile", "-C", "cache=no", BUILT_WASM, "-o", BUILT_CWASM],
@@ -266,11 +285,13 @@ impl Files {
         Ok(())
     }
 
-    fn copy_dir(source: &Path, destination: &Path) -> ACResult<()> {
-        fs::create_dir_all(destination).map_err(ACError::FileSystem)?;
-        for entry in fs::read_dir(source).map_err(ACError::FileSystem)? {
-            let entry = entry.map_err(ACError::FileSystem)?;
-            let file_type = entry.file_type().map_err(ACError::FileSystem)?;
+    async fn copy_dir(source: &Path, destination: &Path) -> ACResult<()> {
+        fs::create_dir_all(destination)
+            .await
+            .map_err(ACError::FileSystem)?;
+        let mut entries = fs::read_dir(source).await.map_err(ACError::FileSystem)?;
+        while let Some(entry) = entries.next_entry().await.map_err(ACError::FileSystem)? {
+            let file_type = entry.file_type().await.map_err(ACError::FileSystem)?;
             if file_type.is_dir()
                 && IGNORED_DIRECTORIES.contains(&entry.file_name().to_string_lossy().as_ref())
             {
@@ -278,9 +299,12 @@ impl Files {
             }
             let target = destination.join(entry.file_name());
             if file_type.is_dir() {
-                Self::copy_dir(&entry.path(), &target)?;
+                let path = entry.path();
+                Box::pin(Self::copy_dir(&path, &target)).await?;
             } else {
-                fs::copy(entry.path(), target).map_err(ACError::FileSystem)?;
+                fs::copy(entry.path(), target)
+                    .await
+                    .map_err(ACError::FileSystem)?;
             }
         }
         Ok(())

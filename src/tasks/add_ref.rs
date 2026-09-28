@@ -45,13 +45,13 @@ impl TaskTrait for AddRefTask {
         let files = Files::new();
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {
-                files.clean()?;
+                files.clean().await?;
                 if aws.s3.download(&refs_ref.repo_ref, &files.archive).await?
                     == DownloadOutcome::NotFound
                 {
                     return Ok(());
                 }
-                Archive::extract(&files.archive, &files.repo)?;
+                Archive::extract(&files.archive, &files.repo).await?;
                 GitLocal
                     .add_ref(
                         aws.config.timeouts,
@@ -61,7 +61,7 @@ impl TaskTrait for AddRefTask {
                         deadline,
                     )
                     .await?;
-                Archive::create(&files.repo, &files.archive)?;
+                Archive::create(&files.repo, &files.archive).await?;
                 aws.fenced_s3(&refs_ref.lock_ref, &lock)
                     .upload(&refs_ref.repo_ref, &files.archive)
                     .await

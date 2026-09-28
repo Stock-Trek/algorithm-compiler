@@ -51,7 +51,7 @@ impl CommitTask {
         files: &Files,
     ) -> ACResult<()> {
         let prefix = self.prefix()?;
-        Archive::create(&files.algorithms, &files.algorithms_archive)?;
+        Archive::create(&files.algorithms, &files.algorithms_archive).await?;
         self.upload(
             bucket,
             s3,
@@ -94,7 +94,10 @@ impl CommitTask {
         files: &Files,
     ) -> ACResult<()> {
         let path = files.compile_output_file();
-        if !path.exists() {
+        if !tokio::fs::try_exists(&path)
+            .await
+            .map_err(ACError::FileSystem)?
+        {
             return Ok(());
         }
         self.upload(

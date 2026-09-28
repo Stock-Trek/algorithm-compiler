@@ -72,10 +72,10 @@ impl RepoRefs {
 
     async fn prepare_repo(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let files = Files::new();
-        files.prepare()?;
+        files.prepare().await?;
         match aws.s3.download(&self.repo_ref, &files.archive).await? {
             DownloadOutcome::Downloaded => {
-                Archive::extract(&files.archive, &files.repo)?;
+                Archive::extract(&files.archive, &files.repo).await?;
                 GitLocal
                     .fetch(aws.config.timeouts, &files.repo, deadline)
                     .await?;
@@ -96,7 +96,7 @@ impl RepoRefs {
 
     async fn archive_and_upload(&self, aws: &Aws, lock: &DynamoDbLock) -> ACResult<()> {
         let files = Files::new();
-        Archive::create(&files.repo, &files.archive)?;
+        Archive::create(&files.repo, &files.archive).await?;
         aws.fenced_s3(&self.lock_ref, lock)
             .upload(&self.repo_ref, &files.archive)
             .await

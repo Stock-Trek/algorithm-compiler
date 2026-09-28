@@ -99,18 +99,18 @@ impl S3 {
         let mut file = tokio::fs::File::create(sink_file_path)
             .await
             .map_err(ACError::FileSystem)?;
-        tokio::time::timeout(operation_timeout, tokio::io::copy(&mut body, &mut file))
-            .await
-            .map_err(|_| {
-                ACError::Timeout(format!(
-                    "S3 download {}/{} timed out",
-                    object_ref.bucket, object_ref.key
-                ))
-            })?
-            .map_err(ACError::FileSystem)?;
-        tokio::io::AsyncWriteExt::flush(&mut file)
-            .await
-            .map_err(ACError::FileSystem)?;
+        tokio::time::timeout(operation_timeout, async {
+            tokio::io::copy(&mut body, &mut file).await?;
+            tokio::io::AsyncWriteExt::flush(&mut file).await
+        })
+        .await
+        .map_err(|_| {
+            ACError::Timeout(format!(
+                "S3 download {}/{} timed out",
+                object_ref.bucket, object_ref.key
+            ))
+        })?
+        .map_err(ACError::FileSystem)?;
         Ok(())
     }
 
