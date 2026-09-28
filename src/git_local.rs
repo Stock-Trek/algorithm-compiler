@@ -2,6 +2,8 @@ use crate::{dto::sqs_event::SqsRefType, error::ACResult, program::Program, timeo
 use std::{path::Path, time::SystemTime};
 
 const STOCK_TREK_REF_PREFIX: &str = "refs/stock-trek";
+const SHA1_HEX_LENGTH: usize = 40;
+const SHA256_HEX_LENGTH: usize = 64;
 
 pub struct GitLocal;
 
@@ -124,7 +126,8 @@ impl GitLocal {
 impl GitLocal {
     fn is_stock_trek_ref(stock_trek_ref: &str, prefix: &str) -> bool {
         stock_trek_ref.strip_prefix(prefix).is_some_and(|hash| {
-            hash.len() == 40 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+            matches!(hash.len(), SHA1_HEX_LENGTH | SHA256_HEX_LENGTH)
+                && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
         })
     }
 
