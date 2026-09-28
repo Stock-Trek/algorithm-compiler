@@ -43,23 +43,18 @@ pub struct SqsMessage {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SqsDetail {
-    AddAllRepos,
-    RemoveAllRepos,
-    AddRepos {
-        repo_ids: Vec<String>,
+    AllRepos {
+        action: SqsAction,
     },
-    RemoveRepos {
+    Repos {
+        action: SqsAction,
         repo_ids: Vec<String>,
     },
     Rename {
         repo_id: String,
     },
-    AddRef {
-        repo_id: String,
-        ref_name: String,
-        ref_type: SqsRefType,
-    },
-    DeleteRef {
+    Ref {
+        action: SqsAction,
         repo_id: String,
         ref_name: String,
         ref_type: SqsRefType,
@@ -70,6 +65,13 @@ pub enum SqsDetail {
         commit_hash: String,
         forced: bool,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SqsAction {
+    Add,
+    Remove,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
