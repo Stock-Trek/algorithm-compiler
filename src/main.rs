@@ -67,12 +67,20 @@ impl Handler {
         let mut response = SqsEventResponse::default();
         for record in event.payload.records {
             if let Err(error) = self.process_record(&record.body, deadline).await {
-                tracing::error!(
-                    message_id = %record.message_id,
-                    %error,
-                    "Failed to process SQS message, reporting batch item failure",
-                );
-                response.add_failure(record.message_id);
+                if error.is_retryable() {
+                    tracing::error!(
+                        message_id = %record.message_id,
+                        %error,
+                        "Failed to process SQS message, reporting batch item failure",
+                    );
+                    response.add_failure(record.message_id);
+                } else {
+                    tracing::error!(
+                        message_id = %record.message_id,
+                        %error,
+                        "Failed to process SQS message, discarding it",
+                    );
+                }
             }
         }
         Ok(response)
