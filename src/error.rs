@@ -50,6 +50,8 @@ pub enum ACError {
     S3ListObjects(Box<ListObjectsV2Error>),
     #[error("S3PutObject: {0}")]
     S3PutObject(Box<PutObjectError>),
+    #[error("TaskJoin: {0}")]
+    TaskJoin(tokio::task::JoinError),
     #[error("Timeout: {0}")]
     Timeout(String),
 }

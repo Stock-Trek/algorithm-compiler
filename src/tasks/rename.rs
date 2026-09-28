@@ -45,7 +45,7 @@ impl TaskTrait for RenameTask {
         let files = Files::new();
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {
-                files.clean()?;
+                files.clean().await?;
                 let blob = NameBlob {
                     account: account_name,
                     repo: repo_name,
