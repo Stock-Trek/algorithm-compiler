@@ -15,8 +15,6 @@ pub enum GitRemote {
 
 #[async_trait]
 pub trait GitHost {
-    async fn account_id(&self) -> ACResult<String>;
-
     async fn account_repo_ids(&self) -> ACResult<Vec<String>>;
 
     async fn account_repo_name(&self, repo_id: &str) -> ACResult<(String, String)>;
@@ -41,10 +39,6 @@ impl GitRemote {
         match self {
             GitRemote::GitHub(host) => host,
         }
-    }
-
-    pub async fn account_id(&self) -> ACResult<String> {
-        self.host().account_id().await
     }
 
     pub async fn account_repo_ids(&self) -> ACResult<Vec<String>> {

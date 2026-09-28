@@ -21,7 +21,6 @@ struct GitHubRepo {
 
 #[derive(Debug, Clone, Deserialize)]
 struct GitHubOwner {
-    id: u64,
     login: String,
 }
 
@@ -43,10 +42,6 @@ pub struct GitHub {
 
 #[async_trait]
 impl GitHost for GitHub {
-    async fn account_id(&self) -> ACResult<String> {
-        Ok(self.owner().await?.id.to_string())
-    }
-
     async fn account_repo_ids(&self) -> ACResult<Vec<String>> {
         Ok(self
             .repos()
@@ -92,29 +87,6 @@ impl GitHub {
 
 // helpers
 impl GitHub {
-    async fn owner(&self) -> ACResult<GitHubOwner> {
-        let params = RepositoriesParams {
-            per_page: 1,
-            page: 1,
-        };
-        let response = self
-            .client
-            .get::<InstallationRepositoriesResponse, _, _>(
-                "/installation/repositories",
-                Some(&params),
-            )
-            .await
-            .map_err(|error| {
-                ACError::GitHub(format!("failed to fetch installation owner: {error}"))
-            })?;
-        response
-            .repositories
-            .into_iter()
-            .next()
-            .map(|repo| repo.owner)
-            .ok_or_else(|| ACError::GitHub("installation has no repositories".into()))
-    }
-
     async fn repos(&self) -> ACResult<Vec<GitHubRepo>> {
         let mut repos = Vec::new();
         let mut page = 1;
