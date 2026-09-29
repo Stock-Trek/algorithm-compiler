@@ -5,13 +5,13 @@ use crate::{
     files::Files,
     git_remote::GitRemote,
     s3::S3ObjectRef,
-    tasks::{repo_refs::RepoRefs, task::TaskTrait},
+    tasks::{connector_refs::ConnectorRefs, task::TaskTrait},
 };
 use async_trait::async_trait;
 use serde::Serialize;
 use std::time::SystemTime;
 
-pub struct RenameTask {
+pub struct RepoRenameTask {
     git_remote: GitRemote,
     repo_id: String,
 }
@@ -22,7 +22,7 @@ struct NameBlob {
     repo: String,
 }
 
-impl RenameTask {
+impl RepoRenameTask {
     pub fn new(git_remote: GitRemote, repo_id: String) -> Self {
         Self {
             git_remote,
@@ -32,14 +32,14 @@ impl RenameTask {
 }
 
 #[async_trait]
-impl TaskTrait for RenameTask {
+impl TaskTrait for RepoRenameTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let (account_name, repo_name) = self.git_remote.account_repo_name(&self.repo_id).await?;
         let key = format!(
             "{}{S3_NAME_FILE}",
-            RepoRefs::prefix(&self.git_remote, &self.repo_id)?
+            ConnectorRefs::prefix(&self.git_remote, &self.repo_id)?
         );
-        let refs = RepoRefs::new(&aws.config, self.git_remote.clone(), &self.repo_id)?;
+        let refs = ConnectorRefs::new(&aws.config, self.git_remote.clone(), &self.repo_id)?;
         let bucket = refs.repo_ref.bucket.clone();
         let refs_ref = &refs;
         let files = Files::new();

@@ -1,31 +1,31 @@
 use crate::{
     aws::Aws,
-    dto::sqs_event::{GitSource, SqsAction, SqsDetail, SqsMessage},
+    dto::sqs_event::{GitSource, SqsDetail, SqsMessage, SqsRepoAction},
     error::ACResult,
     tasks::task::TaskTrait,
 };
 use async_trait::async_trait;
 use std::time::SystemTime;
 
-pub struct AddReposTask {
+pub struct MultiRepoAddTask {
     source: GitSource,
     repo_ids: Vec<String>,
 }
 
-impl AddReposTask {
+impl MultiRepoAddTask {
     pub fn new(source: GitSource, repo_ids: Vec<String>) -> Self {
         Self { source, repo_ids }
     }
 }
 
 #[async_trait]
-impl TaskTrait for AddReposTask {
+impl TaskTrait for MultiRepoAddTask {
     async fn handle(&self, aws: &Aws, _deadline: SystemTime) -> ACResult<()> {
         for repo_id in &self.repo_ids {
             let message = SqsMessage {
                 source: self.source.clone(),
                 detail: SqsDetail::Repo {
-                    action: SqsAction::Add,
+                    action: SqsRepoAction::Add,
                     repo_id: repo_id.clone(),
                 },
             };

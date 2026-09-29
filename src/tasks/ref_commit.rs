@@ -9,19 +9,19 @@ use crate::{
     git_local::GitLocal,
     git_remote::GitRemote,
     s3::S3ObjectRef,
-    tasks::{repo_refs::RepoRefs, task::TaskTrait},
+    tasks::{connector_refs::ConnectorRefs, task::TaskTrait},
 };
 use async_trait::async_trait;
 use std::{path::Path, time::SystemTime};
 
-pub struct CommitTask {
+pub struct RefCommitTask {
     git_remote: GitRemote,
     repo_id: String,
     branch_name: String,
     commit_hash: String,
 }
 
-impl CommitTask {
+impl RefCommitTask {
     pub fn new(
         git_remote: GitRemote,
         repo_id: String,
@@ -37,7 +37,7 @@ impl CommitTask {
     }
 
     fn prefix(&self) -> ACResult<String> {
-        let base = RepoRefs::prefix(&self.git_remote, &self.repo_id)?;
+        let base = ConnectorRefs::prefix(&self.git_remote, &self.repo_id)?;
         Ok(format!(
             "{base}{}",
             Files::sanitize_path(&self.commit_hash)?
@@ -128,10 +128,10 @@ impl CommitTask {
 }
 
 #[async_trait]
-impl TaskTrait for CommitTask {
+impl TaskTrait for RefCommitTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let ref_name = GitLocal::stock_trek_ref_name(&self.branch_name, &self.commit_hash);
-        let refs = RepoRefs::new(&aws.config, self.git_remote.clone(), &self.repo_id)?;
+        let refs = ConnectorRefs::new(&aws.config, self.git_remote.clone(), &self.repo_id)?;
         let refs_ref = &refs;
         aws.dynamodb
             .locked(&refs.lock_ref, deadline, move |lock| async move {

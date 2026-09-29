@@ -12,14 +12,14 @@ use crate::{
 };
 use std::time::SystemTime;
 
-pub struct RepoRefs {
+pub struct ConnectorRefs {
     pub lock_ref: DynamoDbDatumRef,
     pub repo_ref: S3ObjectRef,
     git_remote: GitRemote,
     repo_id: String,
 }
 
-impl RepoRefs {
+impl ConnectorRefs {
     pub fn new(config: &Config, git_remote: GitRemote, repo_id: &str) -> ACResult<Self> {
         let repo = Files::sanitize_path(repo_id)?;
         let path = format!("{}/{repo}", git_remote.provider());

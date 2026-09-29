@@ -44,21 +44,18 @@ pub struct SqsMessage {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SqsDetail {
     AllRepos {
-        action: SqsAction,
+        action: SqsMultiRepoAction,
     },
-    Repos {
-        action: SqsAction,
+    MultiRepo {
+        action: SqsMultiRepoAction,
         repo_ids: Vec<String>,
     },
     Repo {
-        action: SqsAction,
-        repo_id: String,
-    },
-    Rename {
+        action: SqsRepoAction,
         repo_id: String,
     },
     Ref {
-        action: SqsAction,
+        action: SqsRefAction,
         repo_id: String,
         ref_name: String,
         ref_type: SqsRefType,
@@ -73,9 +70,25 @@ pub enum SqsDetail {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SqsAction {
+pub enum SqsMultiRepoAction {
     Add,
     Remove,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SqsRepoAction {
+    Add,
+    Remove,
+    Rename,
+    Transfer,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SqsRefAction {
+    Create,
+    Delete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -86,7 +99,7 @@ pub enum SqsRefType {
 }
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum GitSource {
     GitHub {
         delivery_id: String,

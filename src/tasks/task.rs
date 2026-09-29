@@ -1,29 +1,31 @@
 use crate::{
     aws::Aws,
-    dto::sqs_event::{SqsAction, SqsDetail, SqsMessage},
+    dto::sqs_event::{SqsDetail, SqsMessage, SqsMultiRepoAction, SqsRefAction, SqsRepoAction},
     error::{ACError, ACResult},
     git_remote::GitRemote,
     tasks::{
-        add_all_repos::AddAllReposTask, add_ref::AddRefTask, add_repo::AddRepoTask,
-        add_repos::AddReposTask, commit::CommitTask, delete_ref::DeleteRefTask,
-        remove_all_repos::RemoveAllReposTask, remove_repo::RemoveRepoTask,
-        remove_repos::RemoveReposTask, rename::RenameTask,
+        all_repos_add::AllReposAddTask, all_repos_remove::AllReposRemoveTask,
+        multi_repo_add::MultiRepoAddTask, multi_repo_remove::MultiRepoRemoveTask,
+        ref_commit::RefCommitTask, ref_create::RefCreateTask, ref_delete::RefDeleteTask,
+        repo_add::RepoAddTask, repo_remove::RepoRemoveTask, repo_rename::RepoRenameTask,
+        repo_transfer::RepoTransferTask,
     },
 };
 use async_trait::async_trait;
 use std::time::SystemTime;
 
 pub enum Task {
-    AddAllRepos(AddAllReposTask),
-    RemoveAllRepos(RemoveAllReposTask),
-    AddRepos(AddReposTask),
-    RemoveRepos(RemoveReposTask),
-    AddRepo(AddRepoTask),
-    RemoveRepo(RemoveRepoTask),
-    Rename(RenameTask),
-    AddRef(AddRefTask),
-    DeleteRef(DeleteRefTask),
-    Commit(CommitTask),
+    AllReposAdd(AllReposAddTask),
+    AllReposRemove(AllReposRemoveTask),
+    MultiRepoAdd(MultiRepoAddTask),
+    MultiRepoRemove(MultiRepoRemoveTask),
+    RepoAdd(RepoAddTask),
+    RepoRemove(RepoRemoveTask),
+    RepoRename(RepoRenameTask),
+    RepoTransfer(RepoTransferTask),
+    RefCreate(RefCreateTask),
+    RefDelete(RefDeleteTask),
+    RefCommit(RefCommitTask),
 }
 
 #[async_trait]
@@ -35,16 +37,17 @@ pub trait TaskTrait {
 impl TaskTrait for Task {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         match self {
-            Self::AddAllRepos(task) => task.handle(aws, deadline).await,
-            Self::RemoveAllRepos(task) => task.handle(aws, deadline).await,
-            Self::AddRepos(task) => task.handle(aws, deadline).await,
-            Self::RemoveRepos(task) => task.handle(aws, deadline).await,
-            Self::AddRepo(task) => task.handle(aws, deadline).await,
-            Self::RemoveRepo(task) => task.handle(aws, deadline).await,
-            Self::AddRef(task) => task.handle(aws, deadline).await,
-            Self::DeleteRef(task) => task.handle(aws, deadline).await,
-            Self::Rename(task) => task.handle(aws, deadline).await,
-            Self::Commit(task) => task.handle(aws, deadline).await,
+            Self::AllReposAdd(task) => task.handle(aws, deadline).await,
+            Self::AllReposRemove(task) => task.handle(aws, deadline).await,
+            Self::MultiRepoAdd(task) => task.handle(aws, deadline).await,
+            Self::MultiRepoRemove(task) => task.handle(aws, deadline).await,
+            Self::RepoAdd(task) => task.handle(aws, deadline).await,
+            Self::RepoRemove(task) => task.handle(aws, deadline).await,
+            Self::RepoRename(task) => task.handle(aws, deadline).await,
+            Self::RepoTransfer(task) => task.handle(aws, deadline).await,
+            Self::RefCreate(task) => task.handle(aws, deadline).await,
+            Self::RefDelete(task) => task.handle(aws, deadline).await,
+            Self::RefCommit(task) => task.handle(aws, deadline).await,
         }
     }
 }
@@ -57,18 +60,28 @@ impl TryFrom<SqsMessage> for Task {
         let git_remote: GitRemote = (&source).try_into()?;
         Ok(match detail {
             SqsDetail::AllRepos { action } => match action {
-                SqsAction::Add => Self::AddAllRepos(AddAllReposTask::new(source, git_remote)),
-                SqsAction::Remove => {
-                    Self::RemoveAllRepos(RemoveAllReposTask::new(source, git_remote))
+                SqsMultiRepoAction::Add => {
+                    Self::AllReposAdd(AllReposAddTask::new(source, git_remote))
+                }
+                SqsMultiRepoAction::Remove => {
+                    Self::AllReposRemove(AllReposRemoveTask::new(source, git_remote))
                 }
             },
-            SqsDetail::Repos { action, repo_ids } => match action {
-                SqsAction::Add => Self::AddRepos(AddReposTask::new(source, repo_ids)),
-                SqsAction::Remove => Self::RemoveRepos(RemoveReposTask::new(source, repo_ids)),
+            SqsDetail::MultiRepo { action, repo_ids } => match action {
+                SqsMultiRepoAction::Add => {
+                    Self::MultiRepoAdd(MultiRepoAddTask::new(source, repo_ids))
+                }
+                SqsMultiRepoAction::Remove => {
+                    Self::MultiRepoRemove(MultiRepoRemoveTask::new(source, repo_ids))
+                }
             },
             SqsDetail::Repo { action, repo_id } => match action {
-                SqsAction::Add => Self::AddRepo(AddRepoTask::new(git_remote, repo_id)),
-                SqsAction::Remove => Self::RemoveRepo(RemoveRepoTask::new(git_remote, repo_id)),
+                SqsRepoAction::Add => Self::RepoAdd(RepoAddTask::new(git_remote, repo_id)),
+                SqsRepoAction::Remove => Self::RepoRemove(RepoRemoveTask::new(git_remote, repo_id)),
+                SqsRepoAction::Rename => Self::RepoRename(RepoRenameTask::new(git_remote, repo_id)),
+                SqsRepoAction::Transfer => {
+                    Self::RepoTransfer(RepoTransferTask::new(git_remote, repo_id))
+                }
             },
             SqsDetail::Ref {
                 action,
@@ -76,20 +89,19 @@ impl TryFrom<SqsMessage> for Task {
                 ref_name,
                 ref_type,
             } => match action {
-                SqsAction::Add => {
-                    Self::AddRef(AddRefTask::new(git_remote, repo_id, ref_name, ref_type))
+                SqsRefAction::Create => {
+                    Self::RefCreate(RefCreateTask::new(git_remote, repo_id, ref_name, ref_type))
                 }
-                SqsAction::Remove => {
-                    Self::DeleteRef(DeleteRefTask::new(git_remote, repo_id, ref_name, ref_type))
+                SqsRefAction::Delete => {
+                    Self::RefDelete(RefDeleteTask::new(git_remote, repo_id, ref_name, ref_type))
                 }
             },
-            SqsDetail::Rename { repo_id } => Self::Rename(RenameTask::new(git_remote, repo_id)),
             SqsDetail::Commit {
                 repo_id,
                 branch_name,
                 commit_hash,
                 ..
-            } => Self::Commit(CommitTask::new(
+            } => Self::RefCommit(RefCommitTask::new(
                 git_remote,
                 repo_id,
                 branch_name,

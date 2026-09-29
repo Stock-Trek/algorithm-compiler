@@ -7,19 +7,19 @@ use crate::{
     git_local::GitLocal,
     git_remote::GitRemote,
     s3::DownloadOutcome,
-    tasks::{repo_refs::RepoRefs, task::TaskTrait},
+    tasks::{connector_refs::ConnectorRefs, task::TaskTrait},
 };
 use async_trait::async_trait;
 use std::time::SystemTime;
 
-pub struct DeleteRefTask {
+pub struct RefCreateTask {
     git_remote: GitRemote,
     repo_id: String,
     ref_name: String,
     ref_type: SqsRefType,
 }
 
-impl DeleteRefTask {
+impl RefCreateTask {
     pub fn new(
         git_remote: GitRemote,
         repo_id: String,
@@ -36,9 +36,9 @@ impl DeleteRefTask {
 }
 
 #[async_trait]
-impl TaskTrait for DeleteRefTask {
+impl TaskTrait for RefCreateTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        let refs = RepoRefs::new(&aws.config, self.git_remote.clone(), &self.repo_id)?;
+        let refs = ConnectorRefs::new(&aws.config, self.git_remote.clone(), &self.repo_id)?;
         let refs_ref = &refs;
         let ref_name = self.ref_name.as_str();
         let ref_type = self.ref_type;
@@ -53,7 +53,7 @@ impl TaskTrait for DeleteRefTask {
                 }
                 Archive::extract(&files.archive, &files.repo).await?;
                 GitLocal
-                    .delete_ref(
+                    .add_ref(
                         aws.config.timeouts,
                         &files.repo,
                         ref_name,
