@@ -2,15 +2,22 @@ use crate::{
     archive::Archive,
     aws::Aws,
     config::Config,
-    constants::{DYNAMODB_LOCK_KEY_ATTRIBUTE, S3_REPOS_PREFIX},
+    constants::{DYNAMODB_LOCK_KEY_ATTRIBUTE, S3_NAME_FILE, S3_REPOS_PREFIX},
     dynamodb::{DynamoDbDatumRef, DynamoDbLock},
-    error::ACResult,
+    error::{ACError, ACResult},
     files::Files,
     git_local::GitLocal,
     git_remote::GitRemote,
     s3::{DownloadOutcome, S3ObjectRef},
 };
+use serde::Serialize;
 use std::time::SystemTime;
+
+#[derive(Serialize)]
+struct NameBlob {
+    account: String,
+    repo: String,
+}
 
 pub struct ConnectorRefs {
     pub lock_ref: DynamoDbDatumRef,
@@ -46,6 +53,43 @@ impl ConnectorRefs {
     pub async fn sync(&self, aws: &Aws, lock: &DynamoDbLock, deadline: SystemTime) -> ACResult<()> {
         self.prepare_repo(aws, deadline).await?;
         self.archive_and_upload(aws, lock).await
+    }
+
+    pub async fn update_name(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
+        let (account, repo) = self.git_remote.account_repo_name(&self.repo_id).await?;
+        aws.dynamodb
+            .locked(&self.lock_ref, deadline, move |lock| async move {
+                Files::new().clean().await?;
+                self.write_name(&account, &repo, aws, &lock).await
+            })
+            .await
+    }
+
+    async fn write_name(
+        &self,
+        account: &str,
+        repo: &str,
+        aws: &Aws,
+        lock: &DynamoDbLock,
+    ) -> ACResult<()> {
+        let key = format!(
+            "{}{S3_NAME_FILE}",
+            Self::prefix(&self.git_remote, &self.repo_id)?
+        );
+        let body = serde_json::to_vec(&NameBlob {
+            account: account.to_string(),
+            repo: repo.to_string(),
+        })
+        .map_err(|error| ACError::InternalServer(format!("Failed to serialize name: {error}")))?;
+        aws.fenced_s3(&self.lock_ref, lock)
+            .upload_bytes(
+                &S3ObjectRef {
+                    bucket: self.repo_ref.bucket.clone(),
+                    key,
+                },
+                body,
+            )
+            .await
     }
 
     pub async fn sync_commit(

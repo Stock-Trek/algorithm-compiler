@@ -1,4 +1,9 @@
-use crate::{aws::Aws, error::ACResult, git_remote::GitRemote, tasks::task::TaskTrait};
+use crate::{
+    aws::Aws,
+    error::ACResult,
+    git_remote::GitRemote,
+    tasks::{connector_refs::ConnectorRefs, task::TaskTrait},
+};
 use async_trait::async_trait;
 use std::time::SystemTime;
 
@@ -19,6 +24,8 @@ impl RepoTransferTask {
 #[async_trait]
 impl TaskTrait for RepoTransferTask {
     async fn handle(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
-        Ok(())
+        ConnectorRefs::new(&aws.config, self.git_remote.clone(), &self.repo_id)?
+            .update_name(aws, deadline)
+            .await
     }
 }
