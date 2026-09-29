@@ -102,7 +102,8 @@ pub enum SqsRefType {
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum GitSource {
     GitHub {
-        delivery_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        delivery_id: Option<String>,
         installation_id: u64,
     },
 }
