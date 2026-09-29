@@ -11,7 +11,7 @@ use crate::{
     s3::{DownloadOutcome, S3ObjectRef},
 };
 use serde::Serialize;
-use std::time::SystemTime;
+use std::{path::Path, time::SystemTime};
 
 #[derive(Serialize)]
 struct NameBlob {
@@ -114,12 +114,24 @@ impl ConnectorRefs {
         self.archive_and_upload(aws, lock).await
     }
 
+    pub async fn set_remote(
+        &self,
+        aws: &Aws,
+        repo_dir: &Path,
+        deadline: SystemTime,
+    ) -> ACResult<()> {
+        self.git_remote
+            .set_remote(aws.config.timeouts, &self.repo_id, repo_dir, deadline)
+            .await
+    }
+
     async fn prepare_repo(&self, aws: &Aws, deadline: SystemTime) -> ACResult<()> {
         let files = Files::new();
         files.prepare().await?;
         match aws.s3.download(&self.repo_ref, &files.archive).await? {
             DownloadOutcome::Downloaded => {
                 Archive::extract(&files.archive, &files.repo).await?;
+                self.set_remote(aws, &files.repo, deadline).await?;
                 GitLocal
                     .fetch(aws.config.timeouts, &files.repo, deadline)
                     .await?;

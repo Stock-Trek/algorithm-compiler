@@ -72,4 +72,18 @@ impl GitRemote {
         .await?;
         Ok(())
     }
+
+    pub async fn set_remote(
+        &self,
+        timeouts: Timeouts,
+        repo_id: &str,
+        repo_dir: &Path,
+        deadline: SystemTime,
+    ) -> ACResult<()> {
+        let clone_url = self.host().clone_url(repo_id).await?;
+        GitLocal
+            .set_remote(timeouts, repo_dir, &clone_url, deadline)
+            .await?;
+        Ok(())
+    }
 }
