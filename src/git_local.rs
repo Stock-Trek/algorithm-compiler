@@ -27,6 +27,22 @@ impl GitLocal {
         .await
     }
 
+    pub async fn set_remote(
+        &self,
+        timeouts: Timeouts,
+        path: &Path,
+        remote_url: &str,
+        deadline: SystemTime,
+    ) -> ACResult<String> {
+        Self::exec_git(
+            timeouts,
+            path,
+            &["remote", "set-url", "origin", remote_url],
+            deadline,
+        )
+        .await
+    }
+
     pub async fn create_ref(
         &self,
         timeouts: Timeouts,

@@ -52,6 +52,7 @@ impl TaskTrait for RefDeleteTask {
                     return Ok(());
                 }
                 Archive::extract(&files.archive, &files.repo).await?;
+                refs_ref.set_remote(aws, &files.repo, deadline).await?;
                 GitLocal
                     .delete_ref(
                         aws.config.timeouts,
