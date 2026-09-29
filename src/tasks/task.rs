@@ -8,7 +8,6 @@ use crate::{
         multi_repo_add::MultiRepoAddTask, multi_repo_remove::MultiRepoRemoveTask,
         ref_commit::RefCommitTask, ref_create::RefCreateTask, ref_delete::RefDeleteTask,
         repo_add::RepoAddTask, repo_remove::RepoRemoveTask, repo_rename::RepoRenameTask,
-        repo_transfer::RepoTransferTask,
     },
 };
 use async_trait::async_trait;
@@ -22,7 +21,6 @@ pub enum Task {
     RepoAdd(RepoAddTask),
     RepoRemove(RepoRemoveTask),
     RepoRename(RepoRenameTask),
-    RepoTransfer(RepoTransferTask),
     RefCreate(RefCreateTask),
     RefDelete(RefDeleteTask),
     RefCommit(RefCommitTask),
@@ -44,7 +42,6 @@ impl TaskTrait for Task {
             Self::RepoAdd(task) => task.handle(aws, deadline).await,
             Self::RepoRemove(task) => task.handle(aws, deadline).await,
             Self::RepoRename(task) => task.handle(aws, deadline).await,
-            Self::RepoTransfer(task) => task.handle(aws, deadline).await,
             Self::RefCreate(task) => task.handle(aws, deadline).await,
             Self::RefDelete(task) => task.handle(aws, deadline).await,
             Self::RefCommit(task) => task.handle(aws, deadline).await,
@@ -78,9 +75,8 @@ impl TryFrom<SqsMessage> for Task {
             SqsDetail::Repo { action, repo_id } => match action {
                 SqsRepoAction::Add => Self::RepoAdd(RepoAddTask::new(git_remote, repo_id)),
                 SqsRepoAction::Remove => Self::RepoRemove(RepoRemoveTask::new(git_remote, repo_id)),
-                SqsRepoAction::Rename => Self::RepoRename(RepoRenameTask::new(git_remote, repo_id)),
-                SqsRepoAction::Transfer => {
-                    Self::RepoTransfer(RepoTransferTask::new(git_remote, repo_id))
+                SqsRepoAction::Rename | SqsRepoAction::Transfer => {
+                    Self::RepoRename(RepoRenameTask::new(git_remote, repo_id))
                 }
             },
             SqsDetail::Ref {

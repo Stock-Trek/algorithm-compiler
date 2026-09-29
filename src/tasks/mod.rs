@@ -9,5 +9,4 @@ pub mod ref_delete;
 pub mod repo_add;
 pub mod repo_remove;
 pub mod repo_rename;
-pub mod repo_transfer;
 pub mod task;
